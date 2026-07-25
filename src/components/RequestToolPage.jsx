@@ -16,7 +16,7 @@ const CATEGORIES = [
   'Security & Privacy',
   'Math & Converter',
   'Social Media',
-  'Lainnya',
+  'Others',
 ];
 
 export default function RequestToolPage({ onBack }) {
@@ -39,9 +39,9 @@ export default function RequestToolPage({ onBack }) {
 
     const templateParams = {
       tool_name:   form.toolName,
-      category:    form.category || 'Tidak disebutkan',
+      category:    form.category || 'Not specified',
       description: form.description,
-      reply_to:    form.email || 'Tidak diberikan',
+      reply_to:    form.email || 'Not provided',
     };
 
     try {
@@ -54,7 +54,7 @@ export default function RequestToolPage({ onBack }) {
       setSubmitted(true);
     } catch (err) {
       console.error('EmailJS error:', err);
-      setSendError('Gagal mengirim request. Coba lagi beberapa saat.');
+      setSendError('Failed to send request. Please try again shortly.');
     } finally {
       setLoading(false);
     }
@@ -71,18 +71,18 @@ export default function RequestToolPage({ onBack }) {
               <CheckCircle2 className="w-14 h-14 text-green-500" />
             </div>
           </div>
-          <h2 className="text-2xl font-extrabold text-gray-900 mb-3">Request Terkirim!</h2>
+          <h2 className="text-2xl font-extrabold text-gray-900 mb-3">Request Sent!</h2>
           <p className="text-gray-500 mb-2">
-            Terima kasih sudah mengirim request tool. Kami akan meninjau dan mempertimbangkannya untuk ditambahkan ke Utilo.
+            Thank you for submitting your tool request. We will review and consider it for inclusion in Utilo.
           </p>
           <p className="text-sm text-gray-400 mb-8">
-            {form.email ? `Notifikasi akan dikirim ke ${form.email} jika tool tersedia.` : ''}
+            {form.email ? `A notification will be sent to ${form.email} when the tool is available.` : ''}
           </p>
           <button
             onClick={onBack}
             className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-8 py-3 rounded-full transition-all shadow-md shadow-orange-500/20 hover:-translate-y-0.5"
           >
-            Kembali ke Tools
+            Back to All Tools
           </button>
         </div>
       </div>
@@ -118,7 +118,7 @@ export default function RequestToolPage({ onBack }) {
         <div className="mt-6 mb-8 rounded-2xl bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-100 px-5 py-4 flex items-start gap-3">
           <Sparkles className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" />
           <p className="text-sm text-gray-600 leading-relaxed">
-            Tool yang paling banyak di-request akan diprioritaskan untuk dikembangkan. Yuk bantu kami tahu apa yang kamu butuhkan!
+            Most requested tools will be prioritized for development. Help us know what tools you need!
           </p>
         </div>
 
@@ -127,7 +127,7 @@ export default function RequestToolPage({ onBack }) {
           {/* Tool Name */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-              Nama Tool <span className="text-orange-500">*</span>
+              Tool Name <span className="text-orange-500">*</span>
             </label>
             <input
               name="toolName"
@@ -136,7 +136,7 @@ export default function RequestToolPage({ onBack }) {
               onChange={handleChange}
               onFocus={() => setFocused('toolName')}
               onBlur={() => setFocused(null)}
-              placeholder="Contoh: Video Compressor, Password Generator..."
+              placeholder="e.g. Video Compressor, Password Generator..."
               className={`w-full px-4 py-3 rounded-xl border text-sm text-gray-700 outline-none transition-all duration-200 bg-white
                 ${focused === 'toolName'
                   ? 'border-orange-400 ring-4 ring-orange-50 shadow-sm'
@@ -148,7 +148,7 @@ export default function RequestToolPage({ onBack }) {
           {/* Category */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-              Kategori
+              Category
             </label>
             <div className="relative">
               <select
@@ -163,7 +163,7 @@ export default function RequestToolPage({ onBack }) {
                     : 'border-gray-200 hover:border-gray-300'
                   } ${!form.category ? 'text-gray-400' : 'text-gray-700'}`}
               >
-                <option value="">Pilih kategori...</option>
+                <option value="">Select category...</option>
                 {CATEGORIES.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
@@ -175,7 +175,7 @@ export default function RequestToolPage({ onBack }) {
           {/* Description */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-              Deskripsi <span className="text-orange-500">*</span>
+              Description <span className="text-orange-500">*</span>
             </label>
             <textarea
               name="description"
@@ -184,7 +184,7 @@ export default function RequestToolPage({ onBack }) {
               onFocus={() => setFocused('description')}
               onBlur={() => setFocused(null)}
               rows={4}
-              placeholder="Jelaskan tool yang kamu inginkan, untuk apa kegunaannya, dan kenapa kamu butuh tool ini..."
+              placeholder="Describe the tool you need, its purpose, and why you need it..."
               className={`w-full px-4 py-3 rounded-xl border text-sm text-gray-700 outline-none transition-all duration-200 bg-white resize-none
                 ${focused === 'description'
                   ? 'border-orange-400 ring-4 ring-orange-50 shadow-sm'
@@ -196,7 +196,7 @@ export default function RequestToolPage({ onBack }) {
           {/* Email */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-              Email <span className="text-gray-400 font-normal text-xs">(opsional — untuk notifikasi)</span>
+              Email <span className="text-gray-400 font-normal text-xs">(optional — for notifications)</span>
             </label>
             <input
               name="email"
@@ -205,7 +205,7 @@ export default function RequestToolPage({ onBack }) {
               onChange={handleChange}
               onFocus={() => setFocused('email')}
               onBlur={() => setFocused(null)}
-              placeholder="email@kamu.com"
+              placeholder="yourname@email.com"
               className={`w-full px-4 py-3 rounded-xl border text-sm text-gray-700 outline-none transition-all duration-200 bg-white
                 ${focused === 'email'
                   ? 'border-orange-400 ring-4 ring-orange-50 shadow-sm'
@@ -227,12 +227,12 @@ export default function RequestToolPage({ onBack }) {
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Mengirim...
+                Submitting...
               </>
             ) : (
               <>
                 <Send className="w-4 h-4" />
-                Kirim Request
+                Submit Request
               </>
             )}
           </button>
@@ -244,7 +244,7 @@ export default function RequestToolPage({ onBack }) {
           )}
 
           <p className="text-center text-xs text-gray-400">
-            Field bertanda <span className="text-orange-500">*</span> wajib diisi
+            Fields marked with <span className="text-orange-500">*</span> are required
           </p>
         </form>
       </div>
