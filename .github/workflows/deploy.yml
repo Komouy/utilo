@@ -3,7 +3,7 @@ name: Deploy Website to cPanel
 on:
   push:
     branches:
-      - main # atau master
+      - main
 
 jobs:
   web-deploy:
@@ -34,3 +34,5 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./dist/
           server-dir: ${{ secrets.FTP_SERVER_DIR }}
+          dangerous-clean-slate: true
+          port: 21
