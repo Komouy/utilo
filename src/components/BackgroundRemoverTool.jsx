@@ -13,7 +13,7 @@ function formatBytes(bytes) {
 }const STAGES = {
   idle: null,
   loading: 'Loading image...',
-  fetching: 'Downloading AI model (one-time only)...',
+  fetching: 'Preparing AI model...',
   processing: 'Processing with AI...',
   done: 'Done!',
 };
@@ -228,11 +228,6 @@ export default function BackgroundRemoverTool({ onBack }) {
                     style={{ width: `${progress}%` }}
                   />
                 </div>
-                {stage === 'fetching' && (
-                  <p className="text-[11px] text-gray-400 mt-2">
-                    AI model is downloaded once (~50MB), then stored in browser.
-                  </p>
-                )}
               </div>
             )}
 
@@ -310,10 +305,6 @@ export default function BackgroundRemoverTool({ onBack }) {
             <div className="rounded-2xl bg-orange-50/60 border border-orange-100 px-5 py-4">
               <p className="text-xs font-bold text-orange-500 uppercase tracking-wider mb-3">INFO</p>
               <ul className="text-xs text-gray-500 space-y-2">
-                <li className="flex items-start gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
-                  AI model is downloaded once (~50MB), then stored in browser
-                </li>
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
                   Image is <strong className="text-gray-600">not sent</strong> to any server — processed locally
