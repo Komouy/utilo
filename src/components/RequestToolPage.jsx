@@ -98,7 +98,7 @@ export default function RequestToolPage({ onBack }) {
           className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-orange-500 transition-colors group mb-6"
         >
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          Back to Tools
+          Back to All Tools
         </button>
 
         {/* Header */}
@@ -109,7 +109,7 @@ export default function RequestToolPage({ onBack }) {
           <div>
             <h1 className="text-2xl font-extrabold text-gray-900">Request Tool</h1>
             <p className="text-gray-500 text-sm mt-0.5">
-              Punya ide tool yang kamu butuhkan? Ceritakan ke kami!
+              Have an idea for a tool you need? Tell us!
             </p>
           </div>
         </div>

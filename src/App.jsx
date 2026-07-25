@@ -104,7 +104,7 @@ function Hero({ onOpenQrTool }) {
         All the tools you need, <br /> in <span className="text-orange-500">one place</span>
       </h1>
       <p className="text-gray-500 text-lg md:text-xl mb-10 max-w-2xl mx-auto">
-        The complete web tools collection — PDF, QR Code, image converter, and more. Free, fast, no install required.
+        The complete web tools collection — QR Code, image converter, background remover, and more. Free, fast, no installation required.
       </p>
       
       <div className="relative max-w-2xl mx-auto mb-8 group">
@@ -195,7 +195,7 @@ export default function App() {
           <>
             <Hero onOpenQrTool={() => setActiveTool('qr-code')} />
 
-            {/* Tools Section (Only 1 tool: QR Code Generator) */}
+            {/* Tools Section */}
             <section className="mb-20 px-6 max-w-7xl mx-auto">
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-3">
@@ -215,7 +215,7 @@ export default function App() {
                 />
                 <ToolCard
                   title="Image Converter"
-                  desc="Convert gambar ke JPG, PNG, atau WebP langsung di browser — tanpa upload ke server"
+                  desc="Convert images to JPG, PNG, or WebP directly in browser — no server upload"
                   icon={<ImageIcon className="w-7 h-7" />}
                   badge="New"
                   badgeColor="green"
@@ -223,7 +223,7 @@ export default function App() {
                 />
                 <ToolCard
                   title="Background Remover"
-                  desc="Hapus background gambar secara otomatis dengan AI — 100% di browser, tanpa upload"
+                  desc="Remove image backgrounds automatically using AI — 100% in browser, no server upload"
                   icon={<Sparkles className="w-7 h-7" />}
                   badge="New"
                   badgeColor="green"

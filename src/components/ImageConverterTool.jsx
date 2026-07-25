@@ -149,7 +149,7 @@ export default function ImageConverterTool({ onBack }) {
           className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-orange-500 transition-colors group mb-6"
         >
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          Back to Tools
+          Back to All Tools
         </button>
 
         {/* Header */}
@@ -160,7 +160,7 @@ export default function ImageConverterTool({ onBack }) {
           <div>
             <h1 className="text-2xl font-extrabold text-gray-900">Image Converter</h1>
             <p className="text-gray-500 text-sm mt-0.5">
-              Convert gambar ke JPG, PNG, atau WebP — langsung di browser, tanpa upload.
+              Convert images to JPG, PNG, or WebP — directly in browser, no server upload.
             </p>
           </div>
         </div>
@@ -205,10 +205,10 @@ export default function ImageConverterTool({ onBack }) {
                     <Upload className="w-8 h-8 text-orange-400" />
                   </div>
                   <p className="font-semibold text-gray-700 mb-1">
-                    {dragging ? 'Lepaskan gambar di sini' : 'Drag & drop gambar'}
+                    {dragging ? 'Drop image here' : 'Drag & drop image'}
                   </p>
                   <p className="text-sm text-gray-400">
-                    atau <span className="text-orange-500 font-semibold">klik untuk pilih file</span>
+                    or <span className="text-orange-500 font-semibold">click to select file</span>
                   </p>
                   <p className="text-xs text-gray-300 mt-2">JPG, PNG, WebP, BMP, GIF</p>
                 </>
@@ -226,7 +226,7 @@ export default function ImageConverterTool({ onBack }) {
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
               <div className="flex items-center gap-2 mb-3">
                 <ChevronDown className="w-4 h-4 text-orange-400" />
-                <span className="font-semibold text-gray-800 text-sm">Format Output</span>
+                <span className="font-semibold text-gray-800 text-sm">Output Format</span>
               </div>
               <div className="flex gap-2">
                 {FORMAT_OPTIONS.map((f) => (
@@ -245,7 +245,7 @@ export default function ImageConverterTool({ onBack }) {
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                 <div className="flex items-center gap-2 mb-3">
                   <ChevronDown className="w-4 h-4 text-orange-400" />
-                  <span className="font-semibold text-gray-800 text-sm">Kualitas</span>
+                  <span className="font-semibold text-gray-800 text-sm">Quality</span>
                 </div>
                 <div className="grid grid-cols-4 gap-2">
                   {QUALITY_PRESETS.map((preset) => {
@@ -289,7 +289,7 @@ export default function ImageConverterTool({ onBack }) {
               ) : (
                 <>
                   <RefreshCw className="w-4 h-4" />
-                  Convert Sekarang
+                  Convert Now
                 </>
               )}
             </button>
@@ -313,14 +313,14 @@ export default function ImageConverterTool({ onBack }) {
                   {/* Result Header */}
                   <div className="flex items-center gap-2 px-5 py-4 border-b border-green-50 bg-green-50/50">
                     <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
-                    <span className="font-semibold text-green-700 text-sm">Konversi Berhasil!</span>
+                    <span className="font-semibold text-green-700 text-sm">Conversion Successful!</span>
                   </div>
 
                   {/* Result Preview */}
                   <div className="flex-1 flex items-center justify-center p-6 bg-[repeating-conic-gradient(#f3f4f6_0%_25%,white_0%_50%)] bg-[length:20px_20px]">
                     <img
                       src={result.url}
-                      alt="Hasil konversi"
+                      alt="Converted result"
                       className="max-h-52 max-w-full object-contain rounded-xl shadow-lg"
                     />
                   </div>
@@ -333,11 +333,11 @@ export default function ImageConverterTool({ onBack }) {
                         <p className="font-bold text-gray-800 text-sm">{outputFormat.label}</p>
                       </div>
                       <div className="text-center border-x border-gray-100">
-                        <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-1">Ukuran</p>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-1">Size</p>
                         <p className="font-bold text-gray-800 text-sm">{formatBytes(result.size)}</p>
                       </div>
                       <div className="text-center">
-                        <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-1">Perubahan</p>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-1">Change</p>
                         <p className={`font-bold text-sm ${
                           sizeDelta < 0 ? 'text-green-500' : sizeDelta > 0 ? 'text-orange-500' : 'text-gray-500'
                         }`}>
@@ -363,8 +363,8 @@ export default function ImageConverterTool({ onBack }) {
                   <div className="p-5 bg-gray-50 rounded-full mb-4">
                     <ImageIcon className="w-10 h-10 text-gray-200" />
                   </div>
-                  <p className="text-gray-400 text-sm font-medium">Hasil konversi akan muncul di sini</p>
-                  <p className="text-gray-300 text-xs mt-1">Upload gambar lalu klik Convert</p>
+                  <p className="text-gray-400 text-sm font-medium">Converted image will appear here</p>
+                  <p className="text-gray-300 text-xs mt-1">Upload an image then click Convert Now</p>
                 </div>
               )}
             </div>

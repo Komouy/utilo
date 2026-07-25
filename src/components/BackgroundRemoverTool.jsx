@@ -117,7 +117,7 @@ export default function BackgroundRemoverTool({ onBack }) {
           className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-orange-500 transition-colors group mb-6"
         >
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          Back to Tools
+          Back to All Tools
         </button>
 
         {/* Header */}
@@ -128,7 +128,7 @@ export default function BackgroundRemoverTool({ onBack }) {
           <div>
             <h1 className="text-2xl font-extrabold text-gray-900">Background Remover</h1>
             <p className="text-gray-500 text-sm mt-0.5">
-              Hapus background gambar secara otomatis dengan AI — 100% di browser, tanpa upload.
+              Remove image backgrounds automatically using AI — 100% in browser, no server upload.
             </p>
           </div>
         </div>
