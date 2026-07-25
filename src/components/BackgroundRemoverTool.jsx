@@ -10,14 +10,12 @@ function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-}
-
-const STAGES = {
+}const STAGES = {
   idle: null,
-  loading: 'Memuat gambar...',
-  fetching: 'Mengunduh AI model (hanya sekali)...',
-  processing: 'Memproses dengan AI...',
-  done: 'Selesai!',
+  loading: 'Loading image...',
+  fetching: 'Downloading AI model (one-time only)...',
+  processing: 'Processing with AI...',
+  done: 'Done!',
 };
 
 export default function BackgroundRemoverTool({ onBack }) {
@@ -33,7 +31,7 @@ export default function BackgroundRemoverTool({ onBack }) {
 
   const handleFile = useCallback((f) => {
     if (!f || !f.type.startsWith('image/')) {
-      setError('File harus berupa gambar (JPG, PNG, WebP).');
+      setError('File must be an image (JPG, PNG, WebP).');
       return;
     }
     setError(null);
@@ -79,7 +77,7 @@ export default function BackgroundRemoverTool({ onBack }) {
       setProgress(100);
     } catch (err) {
       console.error(err);
-      setError('Gagal memproses gambar. Coba gambar lain atau refresh halaman.');
+      setError('Failed to process image. Try another image or refresh the page.');
       setStage('idle');
     }
   };
@@ -177,10 +175,10 @@ export default function BackgroundRemoverTool({ onBack }) {
                     <Upload className="w-8 h-8 text-orange-400" />
                   </div>
                   <p className="font-semibold text-gray-700 mb-1">
-                    {dragging ? 'Lepaskan gambar di sini' : 'Drag & drop gambar'}
+                    {dragging ? 'Drop image here' : 'Drag & drop image'}
                   </p>
                   <p className="text-sm text-gray-400">
-                    atau <span className="text-orange-500 font-semibold">klik untuk pilih file</span>
+                    or <span className="text-orange-500 font-semibold">click to select file</span>
                   </p>
                   <p className="text-xs text-gray-300 mt-2">JPG, PNG, WebP</p>
                 </>
@@ -212,7 +210,7 @@ export default function BackgroundRemoverTool({ onBack }) {
               ) : (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  Hapus Background
+                  Remove Background
                 </>
               )}
             </button>
@@ -232,7 +230,7 @@ export default function BackgroundRemoverTool({ onBack }) {
                 </div>
                 {stage === 'fetching' && (
                   <p className="text-[11px] text-gray-400 mt-2">
-                    AI model diunduh sekali (~50MB), selanjutnya akan tersimpan di browser.
+                    AI model is downloaded once (~50MB), then stored in browser.
                   </p>
                 )}
               </div>
@@ -257,15 +255,15 @@ export default function BackgroundRemoverTool({ onBack }) {
                   {/* Toggle before/after */}
                   <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-50">
                     <span className="text-sm font-semibold text-gray-700">
-                      {showOriginal ? 'Original' : 'Hasil'}
+                      {showOriginal ? 'Original' : 'Result'}
                     </span>
                     <button
                       onClick={() => setShowOriginal((v) => !v)}
                       className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-orange-500 transition-colors px-3 py-1.5 rounded-lg hover:bg-orange-50"
                     >
                       {showOriginal
-                        ? <><Eye className="w-3.5 h-3.5" /> Lihat Hasil</>
-                        : <><EyeOff className="w-3.5 h-3.5" /> Lihat Original</>
+                        ? <><Eye className="w-3.5 h-3.5" /> View Result</>
+                        : <><EyeOff className="w-3.5 h-3.5" /> View Original</>
                       }
                     </button>
                   </div>
@@ -274,7 +272,7 @@ export default function BackgroundRemoverTool({ onBack }) {
                   <div className="flex-1 flex items-center justify-center p-6 bg-[repeating-conic-gradient(#f3f4f6_0%_25%,white_0%_50%)] bg-[length:20px_20px]">
                     <img
                       src={showOriginal ? preview : result.url}
-                      alt={showOriginal ? 'Original' : 'Hasil tanpa background'}
+                      alt={showOriginal ? 'Original' : 'Result without background'}
                       className="max-h-56 max-w-full object-contain rounded-xl shadow-lg transition-all duration-300"
                     />
                   </div>
@@ -286,14 +284,14 @@ export default function BackgroundRemoverTool({ onBack }) {
                       className="w-full py-3 rounded-xl font-bold text-white bg-green-500 hover:bg-green-600 transition-all flex items-center justify-center gap-2 shadow-sm shadow-green-500/20 hover:-translate-y-0.5"
                     >
                       <Download className="w-4 h-4" />
-                      Download PNG (Transparan)
+                      Download PNG (Transparent)
                     </button>
                     <button
                       onClick={handleReset}
                       className="w-full mt-2 py-2.5 rounded-xl font-semibold text-gray-500 hover:text-orange-500 hover:bg-orange-50 transition-all text-sm flex items-center justify-center gap-1.5"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
-                      Proses Gambar Lain
+                      Process Another Image
                     </button>
                   </div>
                 </>
@@ -302,27 +300,27 @@ export default function BackgroundRemoverTool({ onBack }) {
                   <div className="p-5 bg-gray-50 rounded-full mb-4">
                     <FileImage className="w-10 h-10 text-gray-200" />
                   </div>
-                  <p className="text-gray-400 text-sm font-medium">Hasil akan muncul di sini</p>
-                  <p className="text-gray-300 text-xs mt-1">Upload gambar lalu klik Hapus Background</p>
+                  <p className="text-gray-400 text-sm font-medium">Result will appear here</p>
+                  <p className="text-gray-300 text-xs mt-1">Upload an image then click Remove Background</p>
                 </div>
               )}
             </div>
 
             {/* Info */}
             <div className="rounded-2xl bg-orange-50/60 border border-orange-100 px-5 py-4">
-              <p className="text-xs font-bold text-orange-500 uppercase tracking-wider mb-3">Info</p>
+              <p className="text-xs font-bold text-orange-500 uppercase tracking-wider mb-3">INFO</p>
               <ul className="text-xs text-gray-500 space-y-2">
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
-                  AI model diunduh sekali ~50MB, lalu tersimpan di browser
+                  AI model is downloaded once (~50MB), then stored in browser
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
-                  Gambar <strong className="text-gray-600">tidak dikirim</strong> ke server — diproses lokal
+                  Image is <strong className="text-gray-600">not sent</strong> to any server — processed locally
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
-                  Hasil terbaik pada foto orang, produk, atau objek dengan kontras jelas
+                  Best results on photos of people, products, or objects with clear contrast
                 </li>
               </ul>
             </div>
