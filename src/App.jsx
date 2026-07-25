@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { 
-  Search, Grid, QrCode, Flame, ChevronRight, FileBox, Menu, X
+  Search, Grid, QrCode, Flame, ChevronRight, FileBox, Menu, X, ImageIcon, Sparkles
 } from 'lucide-react';
 import QRCodeGeneratorTool from './components/QRCodeGeneratorTool';
+import ImageConverterTool from './components/ImageConverterTool';
+import BackgroundRemoverTool from './components/BackgroundRemoverTool';
+import RequestToolPage from './components/RequestToolPage';
 import alatinLogo from './assets/alatin.png';
 
-function Header({ onHomeClick }) {
+function Header({ onHomeClick, onRequestTool }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
@@ -35,7 +38,12 @@ function Header({ onHomeClick }) {
             </button>
             <a href="#" className="hover:text-gray-900 transition-colors">Categories</a>
             <a href="#" className="hover:text-gray-900 transition-colors">Favorites</a>
-            <a href="#" className="hover:text-gray-900 transition-colors">Blog</a>
+            <button
+              onClick={onRequestTool}
+              className="hover:text-orange-500 transition-colors"
+            >
+              Request Tool
+            </button>
           </nav>
 
           {/* Mobile Menu Toggle Button */}
@@ -75,13 +83,13 @@ function Header({ onHomeClick }) {
             >
               Favorites
             </a>
-            <a
-              href="#"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block px-4 py-2.5 rounded-xl font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors"
+            <button
+              onClick={() => { onRequestTool(); setMobileMenuOpen(false); }}
+              className="w-full text-left px-4 py-2.5 rounded-xl font-medium text-gray-600 hover:text-orange-500 hover:bg-orange-50/60 transition-colors flex items-center justify-between"
             >
-              Blog
-            </a>
+              <span>Request Tool</span>
+              <ChevronRight className="w-4 h-4 text-gray-400" />
+            </button>
           </div>
         )}
       </div>
@@ -120,7 +128,7 @@ function Hero({ onOpenQrTool }) {
       
       <div className="flex flex-wrap justify-center gap-4 text-sm font-medium">
         <span className="flex items-center gap-2 bg-white text-gray-600 px-4 py-2 rounded-full border border-gray-200 shadow-sm">
-          <Grid className="w-4 h-4 text-orange-400" /> 1 Tool available
+          <Grid className="w-4 h-4 text-orange-400" /> 3 Tools available
         </span>
         <span className="flex items-center gap-2 bg-white text-gray-600 px-4 py-2 rounded-full border border-gray-200 shadow-sm">
           <Flame className="w-4 h-4 text-orange-400" /> 100% free
@@ -172,11 +180,17 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#fafafa] font-sans selection:bg-orange-100 selection:text-orange-900 pb-20">
-      <Header onHomeClick={() => setActiveTool(null)} />
+      <Header onHomeClick={() => setActiveTool(null)} onRequestTool={() => setActiveTool('request-tool')} />
       
       <main>
         {activeTool === 'qr-code' ? (
           <QRCodeGeneratorTool onBack={() => setActiveTool(null)} />
+        ) : activeTool === 'image-converter' ? (
+          <ImageConverterTool onBack={() => setActiveTool(null)} />
+        ) : activeTool === 'request-tool' ? (
+          <RequestToolPage onBack={() => setActiveTool(null)} />
+        ) : activeTool === 'bg-remover' ? (
+          <BackgroundRemoverTool onBack={() => setActiveTool(null)} />
         ) : (
           <>
             <Hero onOpenQrTool={() => setActiveTool('qr-code')} />
@@ -198,6 +212,22 @@ export default function App() {
                   desc="Create QR codes from URL, Wi-Fi, Phone, Email, or WhatsApp instantly"
                   icon={<QrCode className="w-7 h-7" />}
                   onClick={() => setActiveTool('qr-code')}
+                />
+                <ToolCard
+                  title="Image Converter"
+                  desc="Convert gambar ke JPG, PNG, atau WebP langsung di browser — tanpa upload ke server"
+                  icon={<ImageIcon className="w-7 h-7" />}
+                  badge="New"
+                  badgeColor="green"
+                  onClick={() => setActiveTool('image-converter')}
+                />
+                <ToolCard
+                  title="Background Remover"
+                  desc="Hapus background gambar secara otomatis dengan AI — 100% di browser, tanpa upload"
+                  icon={<Sparkles className="w-7 h-7" />}
+                  badge="New"
+                  badgeColor="green"
+                  onClick={() => setActiveTool('bg-remover')}
                 />
               </div>
               <div className="mt-16 h-px w-full bg-gradient-to-r from-transparent via-gray-200 to-transparent"></div>
