@@ -5,10 +5,11 @@ import {
   Sparkles, AlertCircle, FileImage, Eye, EyeOff, Zap, Sliders, Info
 } from 'lucide-react';
 
-// ── Mode config (Fast removed) ─────────────────────────────────
+// ── Mode config ──────────────────────────────────────────────────
+// Valid models in @imgly/background-removal: "isnet_quint8" (8-bit, ~10MB, ultra fast) | "isnet_fp16" (16-bit, ~20MB) | "isnet" (32-bit, ~40MB)
 const MODES = {
-  turbo: { label: 'Turbo', maxDim: 512,  model: 'small',  tickerSpeed: 90,  desc: 'Fastest — for Mobile & low-end devices (512px)' },
-  hd:    { label: 'HD',    maxDim: 1920, model: 'medium', tickerSpeed: 350, desc: 'Best quality for Desktop (1920px)' },
+  turbo: { label: 'Turbo', maxDim: 512,  model: 'isnet_quint8', desc: 'Fastest (8-bit Quantized ~10MB, 512px)' },
+  hd:    { label: 'HD',    maxDim: 1920, model: 'isnet_fp16',   desc: 'Best Quality (16-bit FP ~20MB, 1920px)' },
 };
 
 function formatBytes(bytes) {
@@ -52,19 +53,12 @@ async function prepareImage(fileOrBlob, maxDim) {
   });
 }
 
-const STAGE_LABELS = {
-  idle:       null,
-  preparing:  'Optimizing image...',
-  loading:    'Loading AI engine...',
-  fetching:   'Downloading AI model...',
-  processing: 'AI removing background...',
-};
-
 export default function BackgroundRemoverTool({ onBack }) {
   const [file, setFile]                   = useState(null);
   const [preview, setPreview]             = useState(null);
   const [result, setResult]               = useState(null);
-  const [stage, setStage]                 = useState('idle');
+  const [stage, setStage]                 = useState('idle'); // 'idle' | 'preparing' | 'loading' | 'fetching' | 'processing'
+  const [stageText, setStageText]         = useState('');
   const [progress, setProgress]           = useState(0);
   const [error, setError]                 = useState(null);
   const [dragging, setDragging]           = useState(false);
@@ -73,31 +67,11 @@ export default function BackgroundRemoverTool({ onBack }) {
   const [imgDimensions, setImgDimensions] = useState(null);
 
   const inputRef       = useRef(null);
-  const tickerRef      = useRef(null);
-  const maxProgRef     = useRef(0);
   const removeFnRef    = useRef(null); // cached dynamic import
-
-  useEffect(() => () => { if (tickerRef.current) clearInterval(tickerRef.current); }, []);
-
-  const bumpProgress = (val) => {
-    if (val > maxProgRef.current) { maxProgRef.current = val; setProgress(val); }
-  };
-
-  const startTicker = (cap, speedMs) => {
-    if (tickerRef.current) clearInterval(tickerRef.current);
-    tickerRef.current = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= cap) { clearInterval(tickerRef.current); return prev; }
-        const next = prev + 1;
-        maxProgRef.current = Math.max(maxProgRef.current, next);
-        return next;
-      });
-    }, speedMs);
-  };
 
   const handleFile = useCallback((f) => {
     if (!f || !f.type.startsWith('image/')) { setError('File must be an image (JPG, PNG, WebP).'); return; }
-    setError(null); setResult(null); setStage('idle'); setProgress(0);
+    setError(null); setResult(null); setStage('idle'); setProgress(0); setStageText('');
     setShowOriginal(false); setFile(f); setImgDimensions(null);
     const url = URL.createObjectURL(f);
     const img = new Image();
@@ -116,9 +90,9 @@ export default function BackgroundRemoverTool({ onBack }) {
   const handleRemove = async () => {
     if (!file) return;
     setError(null); setResult(null);
-    setProgress(5); maxProgRef.current = 5;
+    setProgress(5);
     setStage('preparing');
-    if (tickerRef.current) clearInterval(tickerRef.current);
+    setStageText('Optimizing image resolution...');
 
     try {
       const cfg = MODES[mode];
@@ -126,47 +100,61 @@ export default function BackgroundRemoverTool({ onBack }) {
       // ── 1. Resize + JPEG encode ───────────────────────────────
       const { blob: inputBlob, info } = await prepareImage(file, cfg.maxDim);
       if (info) setImgDimensions(info);
-      bumpProgress(15);
+      setProgress(15);
 
-      // ── 2. Lazy-load the heavy library only now ───────────────
+      // ── 2. Lazy-load library ──────────────────────────────────
       setStage('loading');
-      startTicker(30, 40); // smooth tick while module loads
+      setStageText('Initializing AI engine...');
       if (!removeFnRef.current) {
         const mod = await import('@imgly/background-removal');
         removeFnRef.current = mod.removeBackground;
       }
-      if (tickerRef.current) clearInterval(tickerRef.current);
-      bumpProgress(30);
+      setProgress(25);
 
-      // ── 3. AI inference ───────────────────────────────────────
+      // ── 3. AI inference with REAL progress ───────────────────
       setStage('fetching');
-      startTicker(90, cfg.tickerSpeed);
+      setStageText('Downloading AI model...');
 
       const outputBlob = await removeFnRef.current(inputBlob, {
         model: cfg.model,
+        output: { format: 'image/png' },
         progress: (key, current, total) => {
           if (key.startsWith('fetch')) {
             setStage('fetching');
-            if (total > 0) bumpProgress(30 + Math.round((current / total) * 40));
-          } else {
+            if (total > 0) {
+              const loadedMB = (current / (1024 * 1024)).toFixed(1);
+              const totalMB  = (total / (1024 * 1024)).toFixed(1);
+              const pct      = 25 + Math.round((current / total) * 45); // 25% → 70%
+              setProgress(pct);
+              setStageText(`Downloading AI model (${loadedMB} MB / ${totalMB} MB)...`);
+            } else {
+              setStageText('Downloading AI model files...');
+            }
+          } else if (key.startsWith('compute')) {
             setStage('processing');
-            bumpProgress(70);
+            if (total > 0) {
+              const pct = 70 + Math.round((current / total) * 28); // 70% → 98%
+              setProgress(pct);
+              setStageText(`AI removing background (${Math.round((current / total) * 100)}%)...`);
+            } else {
+              setProgress(85);
+              setStageText('AI processing image subject...');
+            }
           }
         },
       });
 
-      if (tickerRef.current) clearInterval(tickerRef.current);
-      maxProgRef.current = 100;
       setProgress(100);
       setStage('idle');
+      setStageText('');
       setResult({ url: URL.createObjectURL(outputBlob) });
 
     } catch (err) {
       console.error(err);
-      if (tickerRef.current) clearInterval(tickerRef.current);
-      setError('Failed to process. Try with a smaller image, or switch to Turbo mode.');
+      setError('Failed to process. If your internet is slow, try again or use a smaller image.');
       setStage('idle');
       setProgress(0);
+      setStageText('');
     }
   };
 
@@ -178,10 +166,9 @@ export default function BackgroundRemoverTool({ onBack }) {
   };
 
   const handleReset = () => {
-    if (tickerRef.current) clearInterval(tickerRef.current);
     if (result?.url) URL.revokeObjectURL(result.url);
     setFile(null); setPreview(null); setResult(null);
-    setStage('idle'); setProgress(0); setError(null);
+    setStage('idle'); setProgress(0); setError(null); setStageText('');
     setShowOriginal(false); setImgDimensions(null);
     if (inputRef.current) inputRef.current.value = '';
   };
@@ -304,35 +291,32 @@ export default function BackgroundRemoverTool({ onBack }) {
               }`}
             >
               {isProcessing ? (
-                <><RefreshCw className="w-4 h-4 animate-spin" />{STAGE_LABELS[stage]}</>
+                <><RefreshCw className="w-4 h-4 animate-spin" />Processing...</>
               ) : (
                 <><Sparkles className="w-4 h-4" />Remove Background Now</>
               )}
             </button>
 
-            {/* Progress Bar */}
+            {/* Real Progress Bar */}
             {isProcessing && (
               <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-5 space-y-3">
                 <div className="flex justify-between text-xs font-bold text-gray-700">
                   <span className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-orange-500 animate-ping" />
-                    {STAGE_LABELS[stage]}
+                    {stageText || 'Processing...'}
                   </span>
                   <span className="text-orange-600 font-extrabold tabular-nums">{progress}%</span>
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden p-0.5 border border-gray-100">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-amber-400 via-orange-500 to-orange-600 transition-all duration-200 relative overflow-hidden"
+                    className="h-full rounded-full bg-gradient-to-r from-amber-400 via-orange-500 to-orange-600 transition-all duration-300 relative overflow-hidden"
                     style={{ width: `${progress}%` }}
                   >
                     <div className="absolute inset-0 bg-white/20 animate-pulse" />
                   </div>
                 </div>
                 <p className="text-[11px] text-gray-400 text-center font-medium">
-                  {stage === 'preparing'  && `Resizing to ${MODES[mode].maxDim}px & converting to JPEG...`}
-                  {stage === 'loading'    && 'Initializing AI engine (one-time only)...'}
-                  {stage === 'fetching'   && 'Downloading AI model (cached for next use)...'}
-                  {stage === 'processing' && 'AI is separating subject from background...'}
+                  {stageText}
                 </p>
               </div>
             )}
@@ -386,11 +370,11 @@ export default function BackgroundRemoverTool({ onBack }) {
               <ul className="text-xs text-gray-600 space-y-2">
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
-                  <span><strong className="text-gray-700">Turbo (512px):</strong> Fastest on mobile — AI processes 16× fewer pixels vs HD. Perfect for most subjects.</span>
+                  <span><strong className="text-gray-700">Turbo (8-bit Quantized):</strong> Ultra-fast &amp; uses 75% less bandwidth (~10MB model vs 40MB).</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
-                  <span><strong className="text-gray-700">First use only:</strong> AI model (~20MB) downloads once, then cached forever by your browser.</span>
+                  <span><strong className="text-gray-700">First run only:</strong> AI model downloads once, then cached forever by your browser.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
