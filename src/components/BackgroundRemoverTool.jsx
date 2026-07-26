@@ -1,8 +1,8 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { removeBackground } from '@imgly/background-removal';
 import {
   ArrowLeft, Upload, Download, X, RefreshCw,
-  Sparkles, AlertCircle, FileImage, Eye, EyeOff
+  Sparkles, AlertCircle, FileImage, Eye, EyeOff, Zap, Sliders, Info
 } from 'lucide-react';
 
 function formatBytes(bytes) {
@@ -10,12 +10,69 @@ function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-}const STAGES = {
+}
+
+/**
+ * Downscale image if width or height exceeds maxDimension
+ */
+async function prepareImageForAI(fileOrBlob, maxDimension = 1024) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(fileOrBlob);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      const originalInfo = { width, height };
+
+      if (width <= maxDimension && height <= maxDimension) {
+        resolve({ blob: fileOrBlob, info: { ...originalInfo, scaledWidth: width, scaledHeight: height, isScaled: false } });
+        return;
+      }
+
+      if (width > height) {
+        if (width > maxDimension) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        }
+      } else {
+        if (height > maxDimension) {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          resolve({
+            blob: blob || fileOrBlob,
+            info: { ...originalInfo, scaledWidth: width, scaledHeight: height, isScaled: true }
+          });
+        },
+        'image/png'
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve({ blob: fileOrBlob, info: null });
+    };
+    img.src = url;
+  });
+}
+
+const STAGES = {
   idle: null,
-  loading: 'Loading image...',
-  fetching: 'Preparing AI model...',
-  processing: 'Processing with AI...',
-  done: 'Done!',
+  preparing: 'Optimizing image resolution...',
+  fetching: 'Downloading AI model...',
+  processing: 'Removing background with AI...',
+  done: 'Background removed successfully!',
 };
 
 export default function BackgroundRemoverTool({ onBack }) {
@@ -27,7 +84,18 @@ export default function BackgroundRemoverTool({ onBack }) {
   const [error, setError] = useState(null);
   const [dragging, setDragging] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
+  const [mode, setMode] = useState('fast');            // 'fast' (small model, 1024px) | 'hd' (medium model, 1920px)
+  const [imgDimensions, setImgDimensions] = useState(null);
   const inputRef = useRef(null);
+  const tickerRef = useRef(null);
+  const maxProgressRef = useRef(0);
+
+  // Clean up ticker on unmount
+  useEffect(() => {
+    return () => {
+      if (tickerRef.current) clearInterval(tickerRef.current);
+    };
+  }, []);
 
   const handleFile = useCallback((f) => {
     if (!f || !f.type.startsWith('image/')) {
@@ -40,6 +108,15 @@ export default function BackgroundRemoverTool({ onBack }) {
     setProgress(0);
     setShowOriginal(false);
     setFile(f);
+    setImgDimensions(null);
+
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => {
+      setImgDimensions({ width: img.width, height: img.height });
+    };
+    img.src = url;
+
     const reader = new FileReader();
     reader.onload = (e) => setPreview(e.target.result);
     reader.readAsDataURL(f);
@@ -51,34 +128,83 @@ export default function BackgroundRemoverTool({ onBack }) {
     handleFile(e.dataTransfer.files?.[0]);
   }, [handleFile]);
 
+  const startProgressTicker = (startPercent, maxPercent, speedMs = 250) => {
+    if (tickerRef.current) clearInterval(tickerRef.current);
+    tickerRef.current = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= maxPercent) {
+          clearInterval(tickerRef.current);
+          return prev;
+        }
+        const next = Math.min(prev + 1, maxPercent);
+        maxProgressRef.current = Math.max(maxProgressRef.current, next);
+        return next;
+      });
+    }, speedMs);
+  };
+
   const handleRemove = async () => {
     if (!file) return;
     setError(null);
     setResult(null);
-    setProgress(0);
-    setStage('loading');
+    setProgress(5);
+    maxProgressRef.current = 5;
+    setStage('preparing');
+
+    if (tickerRef.current) clearInterval(tickerRef.current);
 
     try {
-      const blob = await removeBackground(file, {
+      // Step 1: Pre-scale image to avoid memory freeze and speed up AI inference
+      const maxDim = mode === 'fast' ? 1024 : 1920;
+      const { blob: processedInputBlob, info } = await prepareImageForAI(file, maxDim);
+      if (info) {
+        setImgDimensions(info);
+      }
+
+      setProgress(15);
+      maxProgressRef.current = 15;
+      setStage('fetching');
+
+      // Step 2: Start gradual ticker during fetch & compute
+      startProgressTicker(15, 92, mode === 'fast' ? 180 : 350);
+
+      // Step 3: Run AI background removal
+      const modelName = mode === 'fast' ? 'small' : 'medium';
+      const outputBlob = await removeBackground(processedInputBlob, {
+        model: modelName,
         progress: (key, current, total) => {
           if (key.startsWith('fetch')) {
             setStage('fetching');
-            setProgress(total > 0 ? Math.round((current / total) * 100) : 0);
+            if (total > 0) {
+              const fetchPct = 15 + Math.round((current / total) * 35);
+              if (fetchPct > maxProgressRef.current) {
+                maxProgressRef.current = fetchPct;
+                setProgress(fetchPct);
+              }
+            }
           } else {
             setStage('processing');
-            setProgress(total > 0 ? Math.round((current / total) * 100) : 50);
+            if (maxProgressRef.current < 50) {
+              maxProgressRef.current = 50;
+              setProgress(50);
+            }
           }
         },
       });
 
-      const url = URL.createObjectURL(blob);
-      setResult({ url, blob });
-      setStage('done');
+      if (tickerRef.current) clearInterval(tickerRef.current);
+      maxProgressRef.current = 100;
       setProgress(100);
+      setStage('done');
+
+      const resultUrl = URL.createObjectURL(outputBlob);
+      setResult({ url: resultUrl, blob: outputBlob });
     } catch (err) {
       console.error(err);
-      setError('Failed to process image. Try another image or refresh the page.');
+      if (tickerRef.current) clearInterval(tickerRef.current);
+      setError('Failed to process image. Try Fast Mode or choose another image.');
       setStage('idle');
+      setProgress(0);
     }
   };
 
@@ -92,6 +218,7 @@ export default function BackgroundRemoverTool({ onBack }) {
   };
 
   const handleReset = () => {
+    if (tickerRef.current) clearInterval(tickerRef.current);
     if (result?.url) URL.revokeObjectURL(result.url);
     setFile(null);
     setPreview(null);
@@ -100,10 +227,11 @@ export default function BackgroundRemoverTool({ onBack }) {
     setProgress(0);
     setError(null);
     setShowOriginal(false);
+    setImgDimensions(null);
     if (inputRef.current) inputRef.current.value = '';
   };
 
-  const isProcessing = stage === 'loading' || stage === 'fetching' || stage === 'processing';
+  const isProcessing = stage === 'preparing' || stage === 'fetching' || stage === 'processing';
 
   return (
     <div className="min-h-screen bg-[#fafafa] pb-24">
@@ -120,15 +248,58 @@ export default function BackgroundRemoverTool({ onBack }) {
 
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
-          <div className="p-3.5 rounded-2xl bg-orange-50 text-orange-500">
+          <div className="p-3.5 rounded-2xl bg-orange-50 text-orange-500 shadow-sm">
             <Sparkles className="w-8 h-8" />
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold text-gray-900">Background Remover</h1>
+            <h1 className="text-2xl font-extrabold text-gray-900">Background Remover AI</h1>
             <p className="text-gray-500 text-sm mt-0.5">
-              Remove image backgrounds automatically using AI — 100% in browser, no server upload.
+              Remove image backgrounds automatically using AI — 100% fast in browser, no server upload.
             </p>
           </div>
+        </div>
+
+        {/* Mode Selector */}
+        <div className="mb-6 p-1.5 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col sm:flex-row gap-2">
+          <button
+            type="button"
+            onClick={() => setMode('fast')}
+            disabled={isProcessing}
+            className={`flex-1 flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl font-semibold text-xs sm:text-sm transition-all ${
+              mode === 'fast'
+                ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20'
+                : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <Zap className={`w-4 h-4 ${mode === 'fast' ? 'text-amber-300' : 'text-orange-500'}`} />
+            <div className="text-left">
+              <div className="font-bold flex items-center gap-1.5">
+                Fast Mode <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded uppercase font-extrabold">Recommended</span>
+              </div>
+              <div className={`text-[11px] font-normal ${mode === 'fast' ? 'text-orange-100' : 'text-gray-400'}`}>
+                Lightweight, anti-lag for Mobile (Max 1024px)
+              </div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMode('hd')}
+            disabled={isProcessing}
+            className={`flex-1 flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl font-semibold text-xs sm:text-sm transition-all ${
+              mode === 'hd'
+                ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20'
+                : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <Sliders className={`w-4 h-4 ${mode === 'hd' ? 'text-amber-300' : 'text-orange-500'}`} />
+            <div className="text-left">
+              <div className="font-bold">HD Detail Mode</div>
+              <div className={`text-[11px] font-normal ${mode === 'hd' ? 'text-orange-100' : 'text-gray-400'}`}>
+                High resolution for Desktop (Max 1920px)
+              </div>
+            </div>
+          </button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -165,8 +336,14 @@ export default function BackgroundRemoverTool({ onBack }) {
                       <X className="w-4 h-4" />
                     </button>
                   )}
-                  <div className="pb-3 text-xs text-gray-400 font-medium">
-                    {file?.name} · {formatBytes(file?.size)}
+                  <div className="pb-3 text-xs text-gray-500 font-medium flex flex-col items-center gap-1">
+                    <span>{file?.name} · {formatBytes(file?.size)}</span>
+                    {imgDimensions && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-100/70 text-orange-700 text-[11px]">
+                        {imgDimensions.width} × {imgDimensions.height} px
+                        {imgDimensions.isScaled && ` ⚡ (Optimized ${imgDimensions.scaledWidth}×${imgDimensions.scaledHeight})`}
+                      </span>
+                    )}
                   </div>
                 </>
               ) : (
@@ -175,12 +352,12 @@ export default function BackgroundRemoverTool({ onBack }) {
                     <Upload className="w-8 h-8 text-orange-400" />
                   </div>
                   <p className="font-semibold text-gray-700 mb-1">
-                    {dragging ? 'Drop image here' : 'Drag & drop image'}
+                    {dragging ? 'Drop image here' : 'Select or Drag & Drop Image'}
                   </p>
                   <p className="text-sm text-gray-400">
-                    or <span className="text-orange-500 font-semibold">click to select file</span>
+                    or <span className="text-orange-500 font-semibold">click to browse files</span>
                   </p>
-                  <p className="text-xs text-gray-300 mt-2">JPG, PNG, WebP</p>
+                  <p className="text-xs text-gray-300 mt-2">Supports JPG, PNG, WebP</p>
                 </>
               )}
             </div>
@@ -198,7 +375,7 @@ export default function BackgroundRemoverTool({ onBack }) {
               disabled={!file || isProcessing}
               className={`w-full py-3.5 rounded-2xl font-bold text-white transition-all duration-200 flex items-center justify-center gap-2 shadow-md
                 ${file && !isProcessing
-                  ? 'bg-orange-500 hover:bg-orange-600 shadow-orange-500/30 hover:shadow-orange-500/40 hover:-translate-y-0.5'
+                  ? 'bg-orange-500 hover:bg-orange-600 shadow-orange-500/30 hover:shadow-orange-500/40 hover:-translate-y-0.5 active:translate-y-0'
                   : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
                 }`}
             >
@@ -210,24 +387,36 @@ export default function BackgroundRemoverTool({ onBack }) {
               ) : (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  Remove Background
+                  Remove Background Now
                 </>
               )}
             </button>
 
             {/* Progress Bar */}
             {isProcessing && (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <div className="flex justify-between text-xs font-semibold text-gray-500 mb-2">
-                  <span>{STAGES[stage]}</span>
-                  <span className="text-orange-500">{progress}%</span>
+              <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-5 space-y-3">
+                <div className="flex justify-between text-xs font-bold text-gray-700">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-ping" />
+                    {STAGES[stage]}
+                  </span>
+                  <span className="text-orange-600 font-extrabold">{progress}%</span>
                 </div>
-                <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+
+                <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden p-0.5 border border-gray-100 relative">
                   <div
-                    className="h-2 rounded-full bg-gradient-to-r from-orange-400 to-orange-500 transition-all duration-300"
+                    className="h-full rounded-full bg-gradient-to-r from-amber-400 via-orange-500 to-orange-600 transition-all duration-300 relative overflow-hidden"
                     style={{ width: `${progress}%` }}
-                  />
+                  >
+                    <div className="absolute inset-0 bg-white/20 animate-[pulse_1s_infinite]" />
+                  </div>
                 </div>
+
+                <p className="text-[11px] text-gray-400 text-center font-medium">
+                  {stage === 'preparing' && 'Optimizing image resolution for smooth processing...'}
+                  {stage === 'fetching' && 'Downloading AI model to browser (happens only once)...'}
+                  {stage === 'processing' && 'Separating subject and background with precision...'}
+                </p>
               </div>
             )}
 
@@ -250,14 +439,14 @@ export default function BackgroundRemoverTool({ onBack }) {
                   {/* Toggle before/after */}
                   <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-50">
                     <span className="text-sm font-semibold text-gray-700">
-                      {showOriginal ? 'Original' : 'Result'}
+                      {showOriginal ? 'Original Image' : 'Background Removed Result'}
                     </span>
                     <button
                       onClick={() => setShowOriginal((v) => !v)}
                       className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-orange-500 transition-colors px-3 py-1.5 rounded-lg hover:bg-orange-50"
                     >
                       {showOriginal
-                        ? <><Eye className="w-3.5 h-3.5" /> View Result</>
+                        ? <><Eye className="w-3.5 h-3.5" /> View AI Result</>
                         : <><EyeOff className="w-3.5 h-3.5" /> View Original</>
                       }
                     </button>
@@ -268,7 +457,7 @@ export default function BackgroundRemoverTool({ onBack }) {
                     <img
                       src={showOriginal ? preview : result.url}
                       alt={showOriginal ? 'Original' : 'Result without background'}
-                      className="max-h-56 max-w-full object-contain rounded-xl shadow-lg transition-all duration-300"
+                      className="max-h-64 max-w-full object-contain rounded-xl shadow-md transition-all duration-300"
                     />
                   </div>
 
@@ -276,10 +465,10 @@ export default function BackgroundRemoverTool({ onBack }) {
                   <div className="px-5 py-4 border-t border-gray-50">
                     <button
                       onClick={handleDownload}
-                      className="w-full py-3 rounded-xl font-bold text-white bg-green-500 hover:bg-green-600 transition-all flex items-center justify-center gap-2 shadow-sm shadow-green-500/20 hover:-translate-y-0.5"
+                      className="w-full py-3 rounded-xl font-bold text-white bg-emerald-500 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 shadow-sm shadow-emerald-500/20 hover:-translate-y-0.5"
                     >
                       <Download className="w-4 h-4" />
-                      Download PNG (Transparent)
+                      Download Transparent PNG
                     </button>
                     <button
                       onClick={handleReset}
@@ -295,23 +484,25 @@ export default function BackgroundRemoverTool({ onBack }) {
                   <div className="p-5 bg-gray-50 rounded-full mb-4">
                     <FileImage className="w-10 h-10 text-gray-200" />
                   </div>
-                  <p className="text-gray-400 text-sm font-medium">Result will appear here</p>
+                  <p className="text-gray-400 text-sm font-medium">AI result will appear here</p>
                   <p className="text-gray-300 text-xs mt-1">Upload an image then click Remove Background</p>
                 </div>
               )}
             </div>
 
-            {/* Info */}
+            {/* Info Box */}
             <div className="rounded-2xl bg-orange-50/60 border border-orange-100 px-5 py-4">
-              <p className="text-xs font-bold text-orange-500 uppercase tracking-wider mb-3">INFO</p>
-              <ul className="text-xs text-gray-500 space-y-2">
+              <p className="text-xs font-bold text-orange-600 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <Info className="w-3.5 h-3.5 text-orange-500" /> Local Processing Benefits
+              </p>
+              <ul className="text-xs text-gray-600 space-y-2">
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
-                  Image is <strong className="text-gray-600">not sent</strong> to any server — processed locally
+                  <strong className="text-gray-700">100% Privacy Protected:</strong> Images are processed directly inside your browser and never uploaded to any server.
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
-                  Best results on photos of people, products, or objects with clear contrast
+                  <strong className="text-gray-700">Fast Anti-Lag Mode:</strong> Automatically optimizes image dimensions for smooth performance on mobile devices.
                 </li>
               </ul>
             </div>

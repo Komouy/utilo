@@ -11,10 +11,10 @@ const FORMAT_OPTIONS = [
 ];
 
 const QUALITY_PRESETS = [
-  { label: '360p', desc: 'Rendah', value: 40 },
-  { label: '480p', desc: 'Sedang', value: 65 },
-  { label: '720p', desc: 'Tinggi', value: 85 },
-  { label: '1080p', desc: 'Terbaik', value: 100 },
+  { label: '360p', desc: 'Low', value: 40 },
+  { label: '480p', desc: 'Medium', value: 65 },
+  { label: '720p', desc: 'High', value: 85 },
+  { label: '1080p', desc: 'Best', value: 100 },
 ];
 
 function formatBytes(bytes) {
@@ -52,7 +52,7 @@ export default function ImageConverterTool({ onBack }) {
 
   const handleFile = useCallback((f) => {
     if (!f || !f.type.startsWith('image/')) {
-      setError('File harus berupa gambar (JPG, PNG, WebP, dll).');
+      setError('File must be an image (JPG, PNG, WebP, etc.).');
       return;
     }
     setError(null);
@@ -107,13 +107,13 @@ export default function ImageConverterTool({ onBack }) {
           name: `${baseName}.${outputFormat.ext}`,
         });
       } catch {
-        setError('Konversi gagal. Coba gambar lain.');
+        setError('Conversion failed. Try another image.');
       } finally {
         setConverting(false);
       }
     };
     img.onerror = () => {
-      setError('Gagal memuat gambar.');
+      setError('Failed to load image.');
       setConverting(false);
     };
     img.src = preview;
@@ -154,7 +154,7 @@ export default function ImageConverterTool({ onBack }) {
 
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
-          <div className="p-3.5 rounded-2xl bg-orange-50 text-orange-500">
+          <div className="p-3.5 rounded-2xl bg-orange-50 text-orange-500 shadow-sm">
             <FileImage className="w-8 h-8" />
           </div>
           <div>
@@ -377,19 +377,19 @@ export default function ImageConverterTool({ onBack }) {
                   <div className="p-1 bg-orange-100 rounded-md shrink-0 mt-0.5">
                     <Shield className="w-3 h-3 text-orange-500" />
                   </div>
-                  <span><strong className="text-gray-700">PNG</strong> — lossless, cocok untuk logo &amp; ikon dengan transparansi</span>
+                  <span><strong className="text-gray-700">PNG</strong> — lossless, ideal for logos &amp; icons with transparency</span>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <div className="p-1 bg-orange-100 rounded-md shrink-0 mt-0.5">
                     <Camera className="w-3 h-3 text-orange-500" />
                   </div>
-                  <span><strong className="text-gray-700">JPG</strong> — ukuran kecil, ideal untuk foto</span>
+                  <span><strong className="text-gray-700">JPG</strong> — small size, best for photos</span>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <div className="p-1 bg-orange-100 rounded-md shrink-0 mt-0.5">
                     <Zap className="w-3 h-3 text-orange-500" />
                   </div>
-                  <span><strong className="text-gray-700">WebP</strong> — terbaik untuk web, ukuran kecil + kualitas tinggi</span>
+                  <span><strong className="text-gray-700">WebP</strong> — best for web, small size + high quality</span>
                 </li>
               </ul>
             </div>
