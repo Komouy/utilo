@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Search, Grid, QrCode, Flame, ChevronRight, ChevronDown, FileBox, Menu, X, 
-  ImageIcon, Sparkles, Code2, Binary, Layers, LayoutGrid, KeyRound
+  ImageIcon, Sparkles, Code2, Binary, Layers, LayoutGrid, KeyRound, Type, Link, AlignLeft
 } from 'lucide-react';
 import QRCodeGeneratorTool from './components/QRCodeGeneratorTool';
 import ImageConverterTool from './components/ImageConverterTool';
@@ -9,6 +9,9 @@ import BackgroundRemoverTool from './components/BackgroundRemoverTool';
 import JsonFormatterTool from './components/JsonFormatterTool';
 import Base64Tool from './components/Base64Tool';
 import PasswordGeneratorTool from './components/PasswordGeneratorTool';
+import WordCounterTool from './components/WordCounterTool';
+import UrlEncoderTool from './components/UrlEncoderTool';
+import LoremIpsumTool from './components/LoremIpsumTool';
 import RequestToolPage from './components/RequestToolPage';
 import alatinLogo from './assets/alatin.png';
 
@@ -64,14 +67,41 @@ const ALL_TOOLS = [
     category: 'Utilities & Generators',
     badge: 'New',
     badgeColor: 'green'
+  },
+  {
+    id: 'word-counter',
+    title: 'Word Counter',
+    desc: 'Count words, characters, sentences, paragraphs and estimate reading time instantly',
+    icon: <Type className="w-7 h-7" />,
+    category: 'Utilities & Generators',
+    badge: 'New',
+    badgeColor: 'green'
+  },
+  {
+    id: 'lorem-ipsum',
+    title: 'Lorem Ipsum Generator',
+    desc: 'Generate customizable placeholder text for designs, mockups and prototypes',
+    icon: <AlignLeft className="w-7 h-7" />,
+    category: 'Utilities & Generators',
+    badge: 'New',
+    badgeColor: 'green'
+  },
+  {
+    id: 'url-encoder',
+    title: 'URL Encoder / Decoder',
+    desc: 'Encode and decode URLs and query strings instantly — 100% browser-based',
+    icon: <Link className="w-7 h-7" />,
+    category: 'Developer Tools',
+    badge: 'New',
+    badgeColor: 'green'
   }
 ];
 
 const CATEGORIES_LIST = [
   { name: 'All', icon: <LayoutGrid className="w-4 h-4 text-orange-500" />, desc: 'All web tools' },
-  { name: 'Developer Tools', icon: <Code2 className="w-4 h-4 text-orange-500" />, desc: 'JSON Formatter, Base64, etc.' },
+  { name: 'Developer Tools', icon: <Code2 className="w-4 h-4 text-orange-500" />, desc: 'JSON, Base64, URL Encoder' },
   { name: 'Media & Images', icon: <ImageIcon className="w-4 h-4 text-orange-500" />, desc: 'AI Remove BG, Converter' },
-  { name: 'Utilities & Generators', icon: <QrCode className="w-4 h-4 text-orange-500" />, desc: 'QR Code, Password Generator' },
+  { name: 'Utilities & Generators', icon: <QrCode className="w-4 h-4 text-orange-500" />, desc: 'QR Code, Password, Lorem Ipsum' },
 ];
 
 const CATEGORIES = CATEGORIES_LIST.map((c) => c.name);
@@ -376,6 +406,12 @@ export default function App() {
           <Base64Tool onBack={() => setActiveTool(null)} />
         ) : activeTool === 'password-generator' ? (
           <PasswordGeneratorTool onBack={() => setActiveTool(null)} />
+        ) : activeTool === 'word-counter' ? (
+          <WordCounterTool onBack={() => setActiveTool(null)} />
+        ) : activeTool === 'url-encoder' ? (
+          <UrlEncoderTool onBack={() => setActiveTool(null)} />
+        ) : activeTool === 'lorem-ipsum' ? (
+          <LoremIpsumTool onBack={() => setActiveTool(null)} />
         ) : (
           <>
             <Hero 
