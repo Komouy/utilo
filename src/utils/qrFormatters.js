@@ -1,22 +1,23 @@
 /**
- * Format functions untuk berbagai tipe QR Code
+ * Format functions for various QR Code types
  */
 
 export const formatWifiQR = ({ ssid, password, security }) => {
-  let qrString = `WIFI:T:${security};S:${ssid}`;
-  if (password) {
-    qrString += `;P:${password}`;
+  const escapeStr = (str) => (str || '').replace(/([\\;:,"])/g, '\\$1');
+  let qrString = `WIFI:T:${security};S:${escapeStr(ssid)}`;
+  if (password && security !== 'nopass') {
+    qrString += `;P:${escapeStr(password)}`;
   }
   qrString += ';;';
   return qrString;
 };
 
 export const formatPhoneQR = (phoneNumber) => {
-  return `tel:${phoneNumber}`;
+  return `tel:${phoneNumber.trim()}`;
 };
 
 export const formatEmailQR = (email, subject = '', body = '') => {
-  let mailtoUrl = `mailto:${email}`;
+  let mailtoUrl = `mailto:${email.trim()}`;
   const params = [];
   if (subject) params.push(`subject=${encodeURIComponent(subject)}`);
   if (body) params.push(`body=${encodeURIComponent(body)}`);
@@ -27,7 +28,10 @@ export const formatEmailQR = (email, subject = '', body = '') => {
 };
 
 export const formatWhatsappQR = (phoneNumber, message = '') => {
-  let whatsappUrl = `https://wa.me/${phoneNumber.replace(/[^0-9]/g, '')}`;
+  let cleaned = phoneNumber.trim().replace(/[^0-9+]/g, '');
+  if (cleaned.startsWith('+')) cleaned = cleaned.slice(1);
+  if (cleaned.startsWith('0')) cleaned = '62' + cleaned.slice(1);
+  let whatsappUrl = `https://wa.me/${cleaned}`;
   if (message) {
     whatsappUrl += `?text=${encodeURIComponent(message)}`;
   }
@@ -35,5 +39,9 @@ export const formatWhatsappQR = (phoneNumber, message = '') => {
 };
 
 export const formatUrlQR = (url) => {
-  return url;
+  let trimmed = url.trim();
+  if (trimmed && !/^https?:\/\//i.test(trimmed)) {
+    trimmed = 'https://' + trimmed;
+  }
+  return trimmed;
 };

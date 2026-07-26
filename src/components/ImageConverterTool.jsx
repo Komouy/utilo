@@ -94,21 +94,29 @@ export default function ImageConverterTool({ onBack }) {
 
         ctx.drawImage(img, 0, 0);
         const q = outputFormat.lossy ? quality / 100 : undefined;
-        const dataUrl = canvas.toDataURL(outputFormat.value, q);
 
-        // Estimate output size from base64
-        const base64 = dataUrl.split(',')[1];
-        const outputSize = Math.round((base64.length * 3) / 4);
-
-        const baseName = file.name.replace(/\.[^.]+$/, '');
-        setResult({
-          url: dataUrl,
-          size: outputSize,
-          name: `${baseName}.${outputFormat.ext}`,
-        });
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              setError('Conversion failed. Try another image format.');
+              setConverting(false);
+              return;
+            }
+            if (result?.url) URL.revokeObjectURL(result.url);
+            const baseName = file.name.replace(/\.[^.]+$/, '');
+            const resultUrl = URL.createObjectURL(blob);
+            setResult({
+              url: resultUrl,
+              size: blob.size,
+              name: `${baseName}.${outputFormat.ext}`,
+            });
+            setConverting(false);
+          },
+          outputFormat.value,
+          q
+        );
       } catch {
         setError('Conversion failed. Try another image.');
-      } finally {
         setConverting(false);
       }
     };
@@ -128,6 +136,7 @@ export default function ImageConverterTool({ onBack }) {
   };
 
   const handleReset = () => {
+    if (result?.url) URL.revokeObjectURL(result.url);
     setFile(null);
     setPreview(null);
     setResult(null);

@@ -12,7 +12,12 @@ export default function UrlForm({ onGenerate, defaultValue }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onGenerate(url);
+    let formatted = url.trim();
+    if (formatted && !/^https?:\/\//i.test(formatted)) {
+      formatted = 'https://' + formatted;
+      setUrl(formatted);
+    }
+    onGenerate(formatted);
   };
 
   return (
@@ -30,10 +35,11 @@ export default function UrlForm({ onGenerate, defaultValue }) {
             WEBSITE URL / LINK
           </label>
           <input
-            type="url"
+            type="text"
+            inputMode="url"
             value={url}
             onChange={handleChange}
-            placeholder="https://link.com"
+            placeholder="https://example.com or example.com"
             className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-50 transition-all text-gray-800"
             required
           />

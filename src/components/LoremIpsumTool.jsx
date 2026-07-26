@@ -63,8 +63,8 @@ export default function LoremIpsumTool({ onBack }) {
     setCopied(false);
   }, [type, count, startLorem]);
 
-  // Auto-generate on first render
-  React.useEffect(() => { generate(); }, []);
+  // Auto-generate when options change
+  React.useEffect(() => { generate(); }, [generate]);
 
   const handleCopy = () => {
     if (!output) return;

@@ -23,7 +23,7 @@ export default function QRPreview({ qrValue }) {
             `<?xml version="1.0" encoding="utf-8"?>\n` +
             `<svg xmlns="http://www.w3.org/2000/svg" width="${selectedSize}" height="${selectedSize}" viewBox="0 0 256 256">\n` +
             `  <rect width="100%" height="100%" fill="${bgColor}"/>\n` +
-            `  <g transform="translate(16, 16) scale(0.875)">\n` +
+            `  <g transform="translate(16, 16) scale(0.875)" fill="${qrColor}">\n` +
             `    ${svgElement.innerHTML}\n` +
             `  </g>\n` +
             `</svg>`
