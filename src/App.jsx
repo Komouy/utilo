@@ -480,7 +480,67 @@ export default function App() {
           </>
         )}
       </main>
+
+      <Footer onSelectTool={(id) => setActiveTool(id)} onRequestTool={() => setActiveTool('request-tool')} />
     </div>
   );
 }
+
+function Footer({ onSelectTool, onRequestTool }) {
+  return (
+    <footer className="bg-white border-t border-gray-100 pt-12 pb-8 mt-12">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-10">
+          <div className="md:col-span-1">
+            <div className="flex items-center gap-2.5 mb-3">
+              <img src={alatinLogo} alt="UtiloBox Logo" className="h-7 w-auto object-contain" />
+              <span className="text-xl font-extrabold text-orange-500 tracking-tight">
+                Utilo<span className="text-gray-900">Box</span>
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 leading-relaxed mb-4">
+              All the tools you need, in one place. 100% free, fast, and private browser-based utilities.
+            </p>
+            <p className="text-[11px] text-gray-400">
+              © {new Date().getFullYear()} UtiloBox. All rights reserved.
+            </p>
+          </div>
+
+          <div>
+            <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">Developer Tools</h4>
+            <ul className="space-y-2 text-xs text-gray-500">
+              <li><button onClick={() => onSelectTool('json-formatter')} className="hover:text-orange-500 transition-colors">JSON Formatter</button></li>
+              <li><button onClick={() => onSelectTool('base64')} className="hover:text-orange-500 transition-colors">Base64 Encoder/Decoder</button></li>
+              <li><button onClick={() => onSelectTool('url-encoder')} className="hover:text-orange-500 transition-colors">URL Encoder/Decoder</button></li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">Media & Utilities</h4>
+            <ul className="space-y-2 text-xs text-gray-500">
+              <li><button onClick={() => onSelectTool('bg-remover')} className="hover:text-orange-500 transition-colors">Background Remover AI</button></li>
+              <li><button onClick={() => onSelectTool('image-converter')} className="hover:text-orange-500 transition-colors">Image Converter</button></li>
+              <li><button onClick={() => onSelectTool('qr-code')} className="hover:text-orange-500 transition-colors">QR Code Generator</button></li>
+              <li><button onClick={() => onSelectTool('password-generator')} className="hover:text-orange-500 transition-colors">Password Generator</button></li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">Support & Feedback</h4>
+            <p className="text-xs text-gray-500 leading-relaxed mb-3">
+              Found a bug or need a new tool? Contact us directly.
+            </p>
+            <button
+              onClick={onRequestTool}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-orange-50 text-orange-600 font-bold text-xs hover:bg-orange-100 transition-all"
+            >
+              Request Tool & Contact
+            </button>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
 

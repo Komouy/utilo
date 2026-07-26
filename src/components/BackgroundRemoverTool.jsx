@@ -43,7 +43,7 @@ async function prepareImage(fileOrBlob, maxDim) {
       ctx.drawImage(img, 0, 0, width, height);
 
       canvas.toBlob(
-        (blob) => resolve({ blob: blob || fileOrBlob, info: { ...orig, scaledWidth: width, scaledHeight: height, isScaled: width !== orig.width } }),
+        (blob) => resolve({ blob: blob || fileOrBlob, info: { ...orig, scaledWidth: width, scaledHeight: height, isScaled: width !== orig.width || height !== orig.height } }),
         'image/jpeg', 0.92
       );
     };
