@@ -277,7 +277,7 @@ export default function BackgroundRemoverTool({ onBack }) {
                     {imgDimensions && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-100/70 text-orange-700 text-[11px]">
                         {imgDimensions.width} × {imgDimensions.height}px
-                        {imgDimensions.isScaled && ` ⚡ → ${imgDimensions.scaledWidth}×${imgDimensions.scaledHeight}`}
+                        {imgDimensions.isScaled && ` → ${imgDimensions.scaledWidth}×${imgDimensions.scaledHeight}`}
                       </span>
                     )}
                   </div>
