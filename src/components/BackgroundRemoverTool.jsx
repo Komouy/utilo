@@ -87,6 +87,8 @@ export default function BackgroundRemoverTool({ onBack }) {
     handleFile(e.dataTransfer.files?.[0]);
   }, [handleFile]);
 
+  const [device, setDevice]               = useState('gpu'); // 'gpu' | 'cpu'
+
   const handleRemove = async () => {
     if (!file) return;
     setError(null); setResult(null);
@@ -111,38 +113,61 @@ export default function BackgroundRemoverTool({ onBack }) {
       }
       setProgress(25);
 
-      // ── 3. AI inference with REAL progress ───────────────────
+      // ── 3. AI inference with REAL progress & Timeout ─────────
       setStage('fetching');
       setStageText('Downloading AI model...');
 
-      const outputBlob = await removeFnRef.current(inputBlob, {
-        model: cfg.model,
-        output: { format: 'image/png' },
-        progress: (key, current, total) => {
-          if (key.startsWith('fetch')) {
-            setStage('fetching');
-            if (total > 0) {
-              const loadedMB = (current / (1024 * 1024)).toFixed(1);
-              const totalMB  = (total / (1024 * 1024)).toFixed(1);
-              const pct      = 25 + Math.round((current / total) * 45); // 25% → 70%
-              setProgress(pct);
-              setStageText(`Downloading AI model (${loadedMB} MB / ${totalMB} MB)...`);
-            } else {
-              setStageText('Downloading AI model files...');
+      // Wrap removal in a Promise with 90-second timeout guard
+      const runInference = async (targetDevice) => {
+        return await removeFnRef.current(inputBlob, {
+          model: cfg.model,
+          device: targetDevice,
+          output: { format: 'image/png' },
+          progress: (key, current, total) => {
+            if (key.startsWith('fetch')) {
+              setStage('fetching');
+              if (total > 0) {
+                const loadedMB = (current / (1024 * 1024)).toFixed(1);
+                const totalMB  = (total / (1024 * 1024)).toFixed(1);
+                const pct      = 25 + Math.round((current / total) * 45); // 25% → 70%
+                setProgress(pct);
+                setStageText(`Downloading AI model (${loadedMB} MB / ${totalMB} MB)...`);
+              } else {
+                setStageText('Downloading AI model files...');
+              }
+            } else if (key.startsWith('compute')) {
+              setStage('processing');
+              if (total > 0) {
+                const pct = 70 + Math.round((current / total) * 28); // 70% → 98%
+                setProgress(pct);
+                setStageText(`AI removing background (${Math.round((current / total) * 100)}%)...`);
+              } else {
+                setProgress(85);
+                setStageText('AI processing image subject...');
+              }
             }
-          } else if (key.startsWith('compute')) {
-            setStage('processing');
-            if (total > 0) {
-              const pct = 70 + Math.round((current / total) * 28); // 70% → 98%
-              setProgress(pct);
-              setStageText(`AI removing background (${Math.round((current / total) * 100)}%)...`);
-            } else {
-              setProgress(85);
-              setStageText('AI processing image subject...');
-            }
-          }
-        },
+          },
+        });
+      };
+
+      // Timeout wrapper (90s)
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('TIMEOUT')), 90000);
       });
+
+      let outputBlob;
+      try {
+        outputBlob = await Promise.race([runInference(device), timeoutPromise]);
+      } catch (firstErr) {
+        // If GPU mode timed out or failed, auto-fallback to CPU mode once
+        if (device === 'gpu') {
+          console.warn('GPU mode failed or timed out. Falling back to CPU mode...', firstErr);
+          setStageText('GPU mode hung, switching to CPU fallback mode...');
+          outputBlob = await Promise.race([runInference('cpu'), timeoutPromise]);
+        } else {
+          throw firstErr;
+        }
+      }
 
       setProgress(100);
       setStage('idle');
@@ -151,7 +176,11 @@ export default function BackgroundRemoverTool({ onBack }) {
 
     } catch (err) {
       console.error(err);
-      setError('Failed to process. If your internet is slow, try again or use a smaller image.');
+      if (err.message === 'TIMEOUT') {
+        setError('Process timed out. Your browser GPU might be unresponsive. Try switching device engine to "CPU Mode" below.');
+      } else {
+        setError('Failed to process. If stuck, try changing Processing Engine to CPU Mode or use a smaller image.');
+      }
       setStage('idle');
       setProgress(0);
       setStageText('');
@@ -199,7 +228,7 @@ export default function BackgroundRemoverTool({ onBack }) {
         </div>
 
         {/* Mode Selector — Turbo & HD only */}
-        <div className="mb-6 p-1.5 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col sm:flex-row gap-2">
+        <div className="mb-4 p-1.5 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col sm:flex-row gap-2">
           {Object.entries(MODES).map(([key, cfg]) => {
             const isActive = mode === key;
             return (
@@ -233,6 +262,37 @@ export default function BackgroundRemoverTool({ onBack }) {
               </button>
             );
           })}
+        </div>
+
+        {/* Acceleration Engine Selector */}
+        <div className="mb-6 px-4 py-2 bg-white rounded-xl border border-gray-100 shadow-sm flex items-center justify-between text-xs text-gray-500">
+          <span className="font-medium flex items-center gap-1.5">
+            ⚙️ Processing Engine:
+          </span>
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => setDevice('gpu')}
+              disabled={isProcessing}
+              className={`px-3 py-1 rounded-lg font-semibold text-[11px] transition-colors ${
+                device === 'gpu' ? 'bg-orange-100 text-orange-700 font-bold' : 'hover:bg-gray-100 text-gray-500'
+              }`}
+              title="Uses WebGPU/WebGL acceleration (Fastest, but may freeze on some GPUs)"
+            >
+              GPU Mode (Fast)
+            </button>
+            <button
+              type="button"
+              onClick={() => setDevice('cpu')}
+              disabled={isProcessing}
+              className={`px-3 py-1 rounded-lg font-semibold text-[11px] transition-colors ${
+                device === 'cpu' ? 'bg-orange-100 text-orange-700 font-bold' : 'hover:bg-gray-100 text-gray-500'
+              }`}
+              title="Uses WebAssembly CPU (Most compatible & stable if GPU hangs)"
+            >
+              CPU Mode (Fallback / Safe)
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
