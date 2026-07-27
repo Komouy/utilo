@@ -332,13 +332,13 @@ function HeroBackground() {
     };
     window.addEventListener('resize', handleResize);
 
-    const particles = Array.from({ length: 38 }, () => ({
+    const particles = Array.from({ length: 50 }, () => ({
       x: Math.random() * width,
       y: Math.random() * height,
-      vx: (Math.random() - 0.5) * 0.4,
-      vy: (Math.random() - 0.5) * 0.4,
-      radius: Math.random() * 2 + 1,
-      alpha: Math.random() * 0.5 + 0.2,
+      vx: (Math.random() - 0.5) * 0.7,
+      vy: (Math.random() - 0.5) * 0.7,
+      radius: Math.random() * 2.5 + 1.5,
+      alpha: Math.random() * 0.6 + 0.3,
     }));
 
     const render = () => {
@@ -347,10 +347,10 @@ function HeroBackground() {
       const isDark = document.documentElement.classList.contains('dark');
 
       // Grid mesh lines
-      ctx.strokeStyle = isDark ? 'rgba(255, 115, 0, 0.05)' : 'rgba(255, 115, 0, 0.08)';
+      ctx.strokeStyle = isDark ? 'rgba(255, 115, 0, 0.12)' : 'rgba(255, 115, 0, 0.15)';
       ctx.lineWidth = 1;
 
-      const gridSize = 45;
+      const gridSize = 40;
       for (let x = 0; x < width; x += gridSize) {
         ctx.beginPath();
         ctx.moveTo(x, 0);
@@ -375,20 +375,20 @@ function HeroBackground() {
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
         ctx.fillStyle = isDark
-          ? `rgba(251, 146, 60, ${p.alpha * 0.9})`
+          ? `rgba(251, 146, 60, ${p.alpha})`
           : `rgba(249, 115, 22, ${p.alpha})`;
         ctx.fill();
 
         for (let j = i + 1; j < particles.length; j++) {
           const p2 = particles[j];
           const dist = Math.hypot(p.x - p2.x, p.y - p2.y);
-          if (dist < 120) {
+          if (dist < 130) {
             ctx.beginPath();
             ctx.moveTo(p.x, p.y);
             ctx.lineTo(p2.x, p2.y);
             ctx.strokeStyle = isDark
-              ? `rgba(251, 146, 60, ${(1 - dist / 120) * 0.18})`
-              : `rgba(249, 115, 22, ${(1 - dist / 120) * 0.15})`;
+              ? `rgba(251, 146, 60, ${(1 - dist / 130) * 0.35})`
+              : `rgba(249, 115, 22, ${(1 - dist / 130) * 0.3})`;
             ctx.stroke();
           }
         }
@@ -419,17 +419,13 @@ function Hero({ searchQuery, setSearchQuery, toolCount, onOpenCommandPalette }) 
       {/* Animated Canvas Particle Grid in the background */}
       <HeroBackground />
 
-      {/* Ambient Radial Gradient Glow */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-orange-500/10 dark:bg-orange-500/15 rounded-full blur-3xl pointer-events-none -z-10" />
-
-      {/* Clean Static Badge */}
-      <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-orange-500/10 dark:bg-orange-500/20 border border-orange-500/20 text-orange-600 dark:text-orange-400 text-xs font-bold mb-6 backdrop-blur-md">
-        <Sparkles className="w-3.5 h-3.5 text-orange-500" />
-        <span className="tracking-wide">Fast, Free & 100% Private Browser Tools</span>
-      </div>
+      {/* Bold Moving Glow Orbs in Background */}
+      <div className="absolute -top-10 left-10 w-72 h-72 bg-gradient-to-tr from-orange-500/35 via-amber-400/25 to-transparent rounded-full blur-2xl animate-float-slow pointer-events-none -z-10" />
+      <div className="absolute bottom-10 right-10 w-80 h-80 bg-gradient-to-bl from-amber-500/30 via-orange-500/25 to-transparent rounded-full blur-2xl animate-float-reverse pointer-events-none -z-10" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[300px] bg-orange-500/15 dark:bg-orange-500/25 rounded-full blur-3xl pointer-events-none -z-10" />
 
       {/* Main Headline */}
-      <h1 className="text-4xl md:text-6xl font-extrabold text-gray-900 dark:text-slate-100 tracking-tight leading-tight mb-6">
+      <h1 className="text-4xl md:text-6xl font-extrabold text-gray-900 dark:text-slate-100 tracking-tight leading-tight mb-6 pt-4">
         All the tools you need, <br /> in <span className="text-orange-500 dark:text-orange-400">one place</span>
       </h1>
       
