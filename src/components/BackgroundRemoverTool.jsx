@@ -6,16 +6,15 @@ import {
 
 // ── Mode config ───────────────────────────────────────────────────────────────
 const MODES = {
-  cloud:   { label: 'Cloud AI ☁️',       isCloud: true,   desc: '~2-4 detik via HF API (tercepat)' },
-  mobile:  { label: '📱 HP Turbo',        maxDim: 320,  model: 'isnet_quint8', desc: 'Lokal (~3-5s, 320px) untuk HP' },
-  turbo:   { label: '⚡ Standard Turbo', maxDim: 512,  model: 'isnet_quint8', desc: 'Lokal (~30s, 512px) standar' },
-  hd:      { label: '🎨 HD Quality',     maxDim: 1024, model: 'isnet_fp16',   desc: 'Lokal HD kualitas terbaik' },
-  instant: { label: '🪄 Instant',        maxDim: 1280, isInstant: true,      desc: 'Instan <0.1s untuk BG warna polos' },
+  cloud:   { label: 'Cloud AI ☁️',        isCloud: true,  desc: '~2-4 detik via server (tercepat)' },
+  mobile:  { label: '📱 HP Turbo',         maxDim: 320,  model: 'isnet_quint8', desc: 'Lokal (~3-5s, 320px) untuk HP' },
+  turbo:   { label: '⚡ Standard Turbo',  maxDim: 512,  model: 'isnet_quint8', desc: 'Lokal (~30s, 512px) standar' },
+  hd:      { label: '🎨 HD Quality',      maxDim: 1024, model: 'isnet_fp16',   desc: 'Lokal HD kualitas terbaik' },
+  instant: { label: '🪄 Instant',         maxDim: 1280, isInstant: true,      desc: 'Instan <0.1s untuk BG warna polos' },
 };
 
-// Hugging Face API endpoint (briaai/RMBG-1.4)
-const HF_API_URL = 'https://api-inference.huggingface.co/models/briaai/RMBG-1.4';
-const HF_TOKEN_KEY = 'utilobox_hf_token';
+// PHP Proxy endpoint (deployed on your cPanel server — hides the HF token)
+const PROXY_URL = '/api/removebg.php';
 
 function formatBytes(bytes) {
   if (!bytes) return '—';
@@ -24,36 +23,38 @@ function formatBytes(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-/** Remove background via Hugging Face Inference API (cloud, fast ~2-4s) */
-async function removeBackgroundCloud(file, token, onProgress) {
-  onProgress?.('Mengirim gambar ke Cloud AI...', 20);
+/** Remove background via PHP proxy → HF API (cloud, fast ~2-4s, no token needed by user) */
+async function removeBackgroundCloud(file, onProgress) {
+  onProgress?.('Mengirim gambar ke server...', 20);
 
   const formData = new FormData();
-  formData.append('inputs', file);
+  formData.append('image', file);
 
-  const res = await fetch(HF_API_URL, {
+  const res = await fetch(PROXY_URL, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    body: file,
+    body: formData,
   });
 
+  onProgress?.('Memproses AI di server...', 60);
+
   if (!res.ok) {
-    let errMsg = `HF API error ${res.status}`;
+    let errMsg = `Server error ${res.status}`;
     try {
       const errJson = await res.json();
       errMsg = errJson?.error || errMsg;
     } catch (_) {}
-
-    if (res.status === 401) throw new Error('Token HF tidak valid. Pastikan token Anda benar.');
-    if (res.status === 503) throw new Error('Model Cloud AI sedang loading (~20 detik). Coba lagi sebentar.');
     throw new Error(errMsg);
   }
 
-  onProgress?.('Memproses hasil AI...', 80);
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    const errJson = await res.json();
+    throw new Error(errJson?.error || 'Gagal memproses di server.');
+  }
+
+  onProgress?.('Menerima hasil...', 90);
   const blob = await res.blob();
-  if (!blob || blob.size < 100) throw new Error('Hasil tidak valid dari Cloud AI. Coba lagi.');
+  if (!blob || blob.size < 100) throw new Error('Hasil tidak valid dari server. Coba lagi.');
 
   onProgress?.('Selesai!', 100);
   return blob;
@@ -117,84 +118,6 @@ async function prepareImage(fileOrBlob, maxDim) {
   });
 }
 
-// ── Token Setup Modal ─────────────────────────────────────────────────────────
-function HFTokenModal({ onSave, onClose }) {
-  const [token, setToken] = useState('');
-  const [show, setShow] = useState(false);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={onClose}>
-      <div
-        className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl p-6 w-full max-w-md border border-gray-100 dark:border-gray-800"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-3 mb-5">
-          <div className="p-2.5 bg-blue-50 rounded-xl">
-            <Key className="w-5 h-5 text-blue-500" />
-          </div>
-          <div>
-            <h3 className="font-extrabold text-gray-900 dark:text-white text-lg">Hugging Face API Token</h3>
-            <p className="text-xs text-gray-400">Diperlukan untuk Cloud AI mode</p>
-          </div>
-        </div>
-
-        <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 rounded-xl p-3.5 mb-5">
-          <p className="text-xs text-blue-700 dark:text-blue-300 font-medium leading-relaxed">
-            🔑 Token gratis dari Hugging Face. Daftar / login ke{' '}
-            <a
-              href="https://huggingface.co/settings/tokens"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline font-bold"
-            >
-              huggingface.co/settings/tokens
-            </a>
-            , klik <strong>New token</strong> → tipe <strong>Read</strong> → salin token-nya.
-          </p>
-        </div>
-
-        <div className="relative mb-4">
-          <input
-            type={show ? 'text' : 'password'}
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-            className="w-full border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-sm font-mono bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300 pr-12"
-          />
-          <button
-            type="button"
-            onClick={() => setShow((v) => !v)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-          >
-            {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-          </button>
-        </div>
-
-        <p className="text-[11px] text-gray-400 mb-5 flex items-start gap-1.5">
-          <Lock className="w-3 h-3 mt-0.5 shrink-0" />
-          Token disimpan hanya di browser Anda (localStorage), tidak dikirim ke server kami.
-        </p>
-
-        <div className="flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl font-semibold text-gray-500 hover:bg-gray-50 transition-colors border border-gray-100 text-sm"
-          >
-            Batal
-          </button>
-          <button
-            onClick={() => { if (token.startsWith('hf_') && token.length > 10) { onSave(token); } }}
-            disabled={!token.startsWith('hf_') || token.length < 10}
-            className="flex-1 py-2.5 rounded-xl font-bold text-white bg-blue-500 hover:bg-blue-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-sm"
-          >
-            Simpan & Gunakan
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function BackgroundRemoverTool({ onBack }) {
   const [file, setFile]                   = useState(null);
@@ -206,22 +129,12 @@ export default function BackgroundRemoverTool({ onBack }) {
   const [error, setError]                 = useState(null);
   const [dragging, setDragging]           = useState(false);
   const [showOriginal, setShowOriginal]   = useState(false);
-  const [mode, setMode]                   = useState(() =>
-    typeof window !== 'undefined' && window.innerWidth < 640 ? 'cloud' : 'cloud'
-  );
+  const [mode, setMode]                   = useState('cloud');
   const [imgDimensions, setImgDimensions] = useState(null);
   const [device, setDevice]               = useState('gpu');
-  const [hfToken, setHfToken]             = useState(() => localStorage.getItem(HF_TOKEN_KEY) || '');
-  const [showTokenModal, setShowTokenModal] = useState(false);
 
   const inputRef    = useRef(null);
   const removeFnRef = useRef(null);
-
-  const saveToken = (t) => {
-    localStorage.setItem(HF_TOKEN_KEY, t);
-    setHfToken(t);
-    setShowTokenModal(false);
-  };
 
   const handleFile = useCallback((f) => {
     if (!f || !f.type.startsWith('image/')) { setError('File harus gambar (JPG, PNG, WebP).'); return; }
@@ -250,13 +163,12 @@ export default function BackgroundRemoverTool({ onBack }) {
     try {
       const cfg = MODES[mode];
 
-      // ── Cloud AI (HF API) ───────────────────────────────────
+      // ── Cloud AI via PHP Proxy ──────────────────────────────
       if (cfg.isCloud) {
-        if (!hfToken) { setShowTokenModal(true); setStage('idle'); setProgress(0); setStageText(''); return; }
         setStage('processing');
-        setStageText('Mengirim ke Cloud AI (HF)...');
+        setStageText('Mengirim ke server Cloud AI...');
         setProgress(20);
-        const outputBlob = await removeBackgroundCloud(file, hfToken, (text, pct) => {
+        const outputBlob = await removeBackgroundCloud(file, (text, pct) => {
           setStageText(text);
           setProgress(pct);
         });
@@ -337,9 +249,9 @@ export default function BackgroundRemoverTool({ onBack }) {
     } catch (err) {
       console.error(err);
       if (err.message === 'TIMEOUT') {
-        setError('Proses timeout. Coba gunakan mode Cloud AI (☁️) atau pilih mode HP Turbo untuk HP.');
+        setError('Proses timeout. Coba gunakan mode Cloud AI ☁️ atau pilih mode HP Turbo untuk HP.');
       } else {
-        setError(err.message || 'Gagal memproses. Coba gunakan mode Cloud AI atau gambar yang lebih kecil.');
+        setError(err.message || 'Gagal memproses. Coba gunakan Cloud AI atau gambar yang lebih kecil.');
       }
       setStage('idle'); setProgress(0); setStageText('');
     }
@@ -365,31 +277,29 @@ export default function BackgroundRemoverTool({ onBack }) {
 
   return (
     <div className="min-h-screen bg-transparent pb-24">
-      {showTokenModal && <HFTokenModal onSave={saveToken} onClose={() => setShowTokenModal(false)} />}
-
       <div className="max-w-4xl mx-auto px-4 pt-4">
 
         {/* Back */}
-        <button onClick={onBack} className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-orange-500 transition-colors group mb-6">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-slate-400 hover:text-orange-500 transition-colors group mb-6">
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
           Back to All Tools
         </button>
 
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
-          <div className="p-3.5 rounded-2xl bg-orange-50 text-orange-500 shadow-sm">
+          <div className="p-3.5 rounded-2xl bg-orange-50 dark:bg-orange-500/10 text-orange-500 shadow-sm">
             <Sparkles className="w-8 h-8" />
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white">Background Remover AI</h1>
-            <p className="text-gray-500 text-sm mt-0.5">
-              Hapus background gambar dengan AI — pilih Cloud (cepat) atau Lokal (privat).
+            <h1 className="text-2xl font-extrabold text-gray-900 dark:text-slate-100">Background Remover AI</h1>
+            <p className="text-gray-500 dark:text-slate-400 text-sm mt-0.5">
+              Hapus background gambar dengan AI — Cloud cepat atau Lokal privat.
             </p>
           </div>
         </div>
 
         {/* Mode Selector */}
-        <div className="mb-3 p-1.5 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm grid grid-cols-2 md:grid-cols-5 gap-1.5">
+        <div className="mb-3 p-1.5 bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm grid grid-cols-2 md:grid-cols-5 gap-1.5">
           {Object.entries(MODES).map(([key, cfg]) => {
             const isActive = mode === key;
             return (
@@ -400,14 +310,12 @@ export default function BackgroundRemoverTool({ onBack }) {
                 disabled={isProcessing}
                 className={`flex flex-col items-center justify-center text-center p-2.5 rounded-xl font-semibold text-xs transition-all ${
                   isActive
-                    ? key === 'cloud'
-                      ? 'bg-blue-500 text-white shadow-md shadow-blue-500/20 scale-[1.02]'
-                      : 'bg-orange-500 text-white shadow-md shadow-orange-500/20 scale-[1.02]'
-                    : 'text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 border border-gray-100 dark:border-gray-800'
+                    ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25 scale-[1.02]'
+                    : 'text-gray-600 dark:text-slate-300 hover:bg-orange-50 dark:hover:bg-slate-800 border border-gray-100 dark:border-slate-800'
                 }`}
               >
                 <div className="font-bold text-xs mb-0.5">{cfg.label}</div>
-                <div className={`text-[10px] font-normal leading-tight ${isActive ? 'text-white/80' : 'text-gray-400'}`}>
+                <div className={`text-[10px] font-normal leading-tight ${isActive ? 'text-orange-100' : 'text-gray-400 dark:text-slate-500'}`}>
                   {cfg.desc}
                 </div>
               </button>
@@ -415,46 +323,27 @@ export default function BackgroundRemoverTool({ onBack }) {
           })}
         </div>
 
-        {/* Cloud Mode Info Banner */}
+        {/* Cloud Mode Info Banner — orange themed */}
         {isCloudMode && (
-          <div className="mb-4 px-4 py-3 bg-blue-50 dark:bg-blue-950/30 rounded-xl border border-blue-100 dark:border-blue-900 flex items-center justify-between gap-3">
+          <div className="mb-4 px-4 py-3 bg-orange-50 dark:bg-orange-500/10 rounded-xl border border-orange-100 dark:border-orange-500/20 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <Cloud className="w-4 h-4 text-blue-500 shrink-0" />
+              <Cloud className="w-4 h-4 text-orange-500 shrink-0" />
               <div>
-                <p className="text-xs font-bold text-blue-700 dark:text-blue-300">Mode Cloud AI (Hugging Face)</p>
-                <p className="text-[11px] text-blue-500 dark:text-blue-400">
-                  {hfToken ? '✅ Token tersimpan — siap digunakan!' : '⚠️ Perlu HF token gratis untuk mulai'}
+                <p className="text-xs font-bold text-orange-700 dark:text-orange-400">Mode Cloud AI — Server UtiloBox</p>
+                <p className="text-[11px] text-orange-500 dark:text-orange-400/80">
+                  ✅ Tidak perlu token — langsung pakai, hasil dalam ~2-4 detik
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {hfToken && (
-                <span className="text-[10px] font-mono text-blue-400 bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded-lg">
-                  {hfToken.substring(0, 6)}...
-                </span>
-              )}
-              <button
-                onClick={() => setShowTokenModal(true)}
-                className="text-[11px] font-bold text-white bg-blue-500 hover:bg-blue-600 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
-              >
-                <Key className="w-3 h-3" />
-                {hfToken ? 'Ganti Token' : 'Set Token'}
-              </button>
-              <a
-                href="https://huggingface.co/settings/tokens"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1"
-              >
-                Daftar <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
+            <span className="text-[10px] font-semibold text-orange-400 bg-orange-100 dark:bg-orange-500/20 px-2 py-1 rounded-lg whitespace-nowrap">
+              Powered by AI
+            </span>
           </div>
         )}
 
         {/* Local Engine Selector (only for local modes) */}
         {!isCloudMode && mode !== 'instant' && (
-          <div className="mb-4 px-4 py-2 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between text-xs text-gray-500">
+          <div className="mb-4 px-4 py-2 bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800 shadow-sm flex items-center justify-between text-xs text-gray-500">
             <span className="font-medium flex items-center gap-1.5">⚙️ Processing Engine:</span>
             <div className="flex gap-1">
               {['gpu', 'cpu'].map((d) => (
@@ -464,7 +353,9 @@ export default function BackgroundRemoverTool({ onBack }) {
                   onClick={() => setDevice(d)}
                   disabled={isProcessing}
                   className={`px-3 py-1 rounded-lg font-semibold text-[11px] transition-colors ${
-                    device === d ? 'bg-orange-100 text-orange-700 font-bold' : 'hover:bg-gray-100 text-gray-500'
+                    device === d
+                      ? 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400 font-bold'
+                      : 'hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500 dark:text-slate-400'
                   }`}
                 >
                   {d === 'gpu' ? 'GPU Mode (Fast)' : 'CPU Mode (Safe)'}
@@ -486,22 +377,25 @@ export default function BackgroundRemoverTool({ onBack }) {
               onClick={() => !file && inputRef.current?.click()}
               className={`relative rounded-2xl border-2 border-dashed transition-all duration-200 flex flex-col items-center justify-center text-center min-h-[260px] overflow-hidden ${
                 dragging ? 'border-orange-400 bg-orange-50/60 scale-[1.01] cursor-copy'
-                : file    ? 'border-orange-200 bg-orange-50/20 cursor-default'
-                          : 'border-gray-200 bg-white dark:bg-gray-900 hover:border-orange-300 hover:bg-orange-50/20 cursor-pointer'
+                : file    ? 'border-orange-200 dark:border-orange-500/30 bg-orange-50/20 dark:bg-orange-500/5 cursor-default'
+                          : 'border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-orange-300 hover:bg-orange-50/20 cursor-pointer'
               }`}
             >
               {preview ? (
                 <>
                   <img src={preview} alt="Original" className="max-h-56 max-w-full object-contain rounded-xl p-3" />
                   {!isProcessing && (
-                    <button onClick={(e) => { e.stopPropagation(); handleReset(); }} className="absolute top-3 right-3 p-1.5 bg-white/90 rounded-full shadow text-gray-500 hover:text-red-500 transition-colors">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleReset(); }}
+                      className="absolute top-3 right-3 p-1.5 bg-white/90 dark:bg-slate-800/90 rounded-full shadow text-gray-500 hover:text-red-500 transition-colors"
+                    >
                       <X className="w-4 h-4" />
                     </button>
                   )}
-                  <div className="pb-3 text-xs text-gray-500 font-medium flex flex-col items-center gap-1">
+                  <div className="pb-3 text-xs text-gray-500 dark:text-slate-400 font-medium flex flex-col items-center gap-1">
                     <span>{file?.name} · {formatBytes(file?.size)}</span>
                     {imgDimensions && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-100/70 text-orange-700 text-[11px]">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-100/70 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400 text-[11px]">
                         {imgDimensions.width} × {imgDimensions.height}px
                       </span>
                     )}
@@ -509,10 +403,16 @@ export default function BackgroundRemoverTool({ onBack }) {
                 </>
               ) : (
                 <>
-                  <div className="p-4 bg-orange-50 rounded-2xl mb-4"><Upload className="w-8 h-8 text-orange-400" /></div>
-                  <p className="font-semibold text-gray-700 mb-1">{dragging ? 'Drop image here' : 'Pilih atau Drag & Drop Gambar'}</p>
-                  <p className="text-sm text-gray-400">atau <span className="text-orange-500 font-semibold">klik untuk browse</span></p>
-                  <p className="text-xs text-gray-300 mt-2">Supports JPG, PNG, WebP</p>
+                  <div className="p-4 bg-orange-50 dark:bg-orange-500/10 rounded-2xl mb-4">
+                    <Upload className="w-8 h-8 text-orange-400" />
+                  </div>
+                  <p className="font-semibold text-gray-700 dark:text-slate-200 mb-1">
+                    {dragging ? 'Drop image here' : 'Pilih atau Drag & Drop Gambar'}
+                  </p>
+                  <p className="text-sm text-gray-400 dark:text-slate-500">
+                    atau <span className="text-orange-500 font-semibold">klik untuk browse</span>
+                  </p>
+                  <p className="text-xs text-gray-300 dark:text-slate-600 mt-2">Supports JPG, PNG, WebP</p>
                 </>
               )}
             </div>
@@ -521,63 +421,44 @@ export default function BackgroundRemoverTool({ onBack }) {
             {/* Process Button */}
             <button
               onClick={handleRemove}
-              disabled={!file || isProcessing || (isCloudMode && !hfToken)}
+              disabled={!file || isProcessing}
               className={`w-full py-3.5 rounded-2xl font-bold text-white transition-all duration-200 flex items-center justify-center gap-2 shadow-md ${
-                file && !isProcessing && (!isCloudMode || hfToken)
-                  ? isCloudMode
-                    ? 'bg-blue-500 hover:bg-blue-600 shadow-blue-500/30 hover:-translate-y-0.5'
-                    : 'bg-orange-500 hover:bg-orange-600 shadow-orange-500/30 hover:-translate-y-0.5'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+                file && !isProcessing
+                  ? 'bg-orange-500 hover:bg-orange-600 shadow-orange-500/30 hover:shadow-orange-500/40 hover:-translate-y-0.5'
+                  : 'bg-gray-200 dark:bg-slate-800 text-gray-400 dark:text-slate-500 cursor-not-allowed shadow-none'
               }`}
             >
-              {isProcessing ? (
-                <><RefreshCw className="w-4 h-4 animate-spin" />Memproses...</>
-              ) : isCloudMode && !hfToken ? (
-                <><Key className="w-4 h-4" />Set Token HF dulu</>
-              ) : (
-                <><Sparkles className="w-4 h-4" />Hapus Background Sekarang</>
-              )}
+              {isProcessing
+                ? <><RefreshCw className="w-4 h-4 animate-spin" />Memproses...</>
+                : <><Sparkles className="w-4 h-4" />Hapus Background Sekarang</>
+              }
             </button>
-
-            {isCloudMode && !hfToken && (
-              <button
-                onClick={() => setShowTokenModal(true)}
-                className="w-full py-2.5 rounded-xl font-bold text-white bg-blue-500 hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 text-sm"
-              >
-                <Key className="w-4 h-4" />
-                Set Hugging Face Token (Gratis)
-              </button>
-            )}
 
             {/* Progress Bar */}
             {isProcessing && (
-              <div className="bg-white dark:bg-gray-900 rounded-2xl border border-orange-100 dark:border-gray-800 shadow-sm p-5 space-y-3">
-                <div className="flex justify-between text-xs font-bold text-gray-700 dark:text-gray-200">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-orange-100 dark:border-slate-800 shadow-sm p-5 space-y-3">
+                <div className="flex justify-between text-xs font-bold text-gray-700 dark:text-slate-200">
                   <span className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-orange-500 animate-ping" />
                     {stageText || 'Memproses...'}
                   </span>
-                  <span className="text-orange-600 font-extrabold tabular-nums">{progress}%</span>
+                  <span className="text-orange-600 dark:text-orange-400 font-extrabold tabular-nums">{progress}%</span>
                 </div>
-                <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-3 overflow-hidden p-0.5 border border-gray-100 dark:border-gray-700">
+                <div className="w-full bg-gray-100 dark:bg-slate-800 rounded-full h-3 overflow-hidden p-0.5 border border-gray-100 dark:border-slate-700">
                   <div
-                    className={`h-full rounded-full transition-all duration-300 relative overflow-hidden ${
-                      isCloudMode
-                        ? 'bg-gradient-to-r from-blue-400 via-blue-500 to-indigo-600'
-                        : 'bg-gradient-to-r from-amber-400 via-orange-500 to-orange-600'
-                    }`}
+                    className="h-full rounded-full bg-gradient-to-r from-amber-400 via-orange-500 to-orange-600 transition-all duration-300 relative overflow-hidden"
                     style={{ width: `${progress}%` }}
                   >
                     <div className="absolute inset-0 bg-white/20 animate-pulse" />
                   </div>
                 </div>
-                <p className="text-[11px] text-gray-400 text-center font-medium">{stageText}</p>
+                <p className="text-[11px] text-gray-400 dark:text-slate-500 text-center font-medium">{stageText}</p>
               </div>
             )}
 
             {/* Error */}
             {error && (
-              <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-sm text-red-600">
+              <div className="flex items-start gap-2 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900 rounded-xl px-4 py-3 text-sm text-red-600 dark:text-red-400">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
@@ -586,53 +467,77 @@ export default function BackgroundRemoverTool({ onBack }) {
 
           {/* RIGHT: Result */}
           <div className="flex flex-col gap-5">
-            <div className={`flex-1 rounded-2xl border overflow-hidden flex flex-col transition-all duration-300 ${result ? 'border-green-100 bg-white shadow-sm dark:border-green-900 dark:bg-gray-900' : 'border-gray-100 bg-white/50 dark:border-gray-800 dark:bg-gray-900/50'}`}>
+            <div className={`flex-1 rounded-2xl border overflow-hidden flex flex-col transition-all duration-300 ${
+              result
+                ? 'border-emerald-100 dark:border-emerald-900 bg-white dark:bg-slate-900 shadow-sm'
+                : 'border-gray-100 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50'
+            }`}>
               {result ? (
                 <>
-                  <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-50 dark:border-gray-800">
-                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{showOriginal ? 'Original Image' : 'Background Removed ✅'}</span>
-                    <button onClick={() => setShowOriginal((v) => !v)} className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-orange-500 transition-colors px-3 py-1.5 rounded-lg hover:bg-orange-50">
-                      {showOriginal ? <><Eye className="w-3.5 h-3.5" /> Lihat Hasil</> : <><EyeOff className="w-3.5 h-3.5" /> Lihat Original</>}
+                  <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-50 dark:border-slate-800">
+                    <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">
+                      {showOriginal ? 'Original Image' : 'Background Removed ✅'}
+                    </span>
+                    <button
+                      onClick={() => setShowOriginal((v) => !v)}
+                      className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-orange-500 transition-colors px-3 py-1.5 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-500/10"
+                    >
+                      {showOriginal
+                        ? <><Eye className="w-3.5 h-3.5" /> Lihat Hasil</>
+                        : <><EyeOff className="w-3.5 h-3.5" /> Lihat Original</>
+                      }
                     </button>
                   </div>
-                  <div className="flex-1 flex items-center justify-center p-6 bg-[repeating-conic-gradient(#f3f4f6_0%_25%,white_0%_50%)] bg-[length:20px_20px]">
-                    <img src={showOriginal ? preview : result.url} alt={showOriginal ? 'Original' : 'No background'} className="max-h-64 max-w-full object-contain rounded-xl shadow-md transition-all duration-300" />
+                  <div className="flex-1 flex items-center justify-center p-6 bg-[repeating-conic-gradient(#f3f4f6_0%_25%,white_0%_50%)] dark:bg-[repeating-conic-gradient(#1e293b_0%_25%,#0f172a_0%_50%)] bg-[length:20px_20px]">
+                    <img
+                      src={showOriginal ? preview : result.url}
+                      alt={showOriginal ? 'Original' : 'No background'}
+                      className="max-h-64 max-w-full object-contain rounded-xl shadow-md transition-all duration-300"
+                    />
                   </div>
-                  <div className="px-5 py-4 border-t border-gray-50 dark:border-gray-800">
-                    <button onClick={handleDownload} className="w-full py-3 rounded-xl font-bold text-white bg-emerald-500 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 shadow-sm shadow-emerald-500/20 hover:-translate-y-0.5">
+                  <div className="px-5 py-4 border-t border-gray-50 dark:border-slate-800">
+                    <button
+                      onClick={handleDownload}
+                      className="w-full py-3 rounded-xl font-bold text-white bg-emerald-500 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 shadow-sm shadow-emerald-500/20 hover:-translate-y-0.5"
+                    >
                       <Download className="w-4 h-4" />Download Transparent PNG
                     </button>
-                    <button onClick={handleReset} className="w-full mt-2 py-2.5 rounded-xl font-semibold text-gray-500 hover:text-orange-500 hover:bg-orange-50 transition-all text-sm flex items-center justify-center gap-1.5">
+                    <button
+                      onClick={handleReset}
+                      className="w-full mt-2 py-2.5 rounded-xl font-semibold text-gray-500 dark:text-slate-400 hover:text-orange-500 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-all text-sm flex items-center justify-center gap-1.5"
+                    >
                       <RefreshCw className="w-3.5 h-3.5" />Proses Gambar Lain
                     </button>
                   </div>
                 </>
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center text-center p-10 min-h-[360px]">
-                  <div className="p-5 bg-gray-50 dark:bg-gray-800 rounded-full mb-4"><FileImage className="w-10 h-10 text-gray-200" /></div>
-                  <p className="text-gray-400 text-sm font-medium">Hasil AI akan muncul di sini</p>
-                  <p className="text-gray-300 text-xs mt-1">Upload gambar lalu klik Hapus Background</p>
+                  <div className="p-5 bg-gray-50 dark:bg-slate-800 rounded-full mb-4">
+                    <FileImage className="w-10 h-10 text-gray-200 dark:text-slate-600" />
+                  </div>
+                  <p className="text-gray-400 dark:text-slate-500 text-sm font-medium">Hasil AI akan muncul di sini</p>
+                  <p className="text-gray-300 dark:text-slate-600 text-xs mt-1">Upload gambar lalu klik Hapus Background</p>
                 </div>
               )}
             </div>
 
             {/* Info Card */}
-            <div className="rounded-2xl bg-orange-50/60 dark:bg-orange-950/20 border border-orange-100 dark:border-orange-900 px-5 py-4">
-              <p className="text-xs font-bold text-orange-600 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <div className="rounded-2xl bg-orange-50/60 dark:bg-orange-500/5 border border-orange-100 dark:border-orange-500/20 px-5 py-4">
+              <p className="text-xs font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <Info className="w-3.5 h-3.5 text-orange-500" /> Panduan Mode
               </p>
               <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-2">
                 <li className="flex items-start gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 shrink-0" />
-                  <span><strong className="text-gray-700 dark:text-gray-300">Cloud AI ☁️:</strong> Tercepat ~2-4 detik via Hugging Face API. Gratis dengan token HF. Gambar dikirim ke server HF.</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
+                  <span><strong className="text-gray-700 dark:text-slate-300">Cloud AI ☁️:</strong> Tercepat ~2-4 detik. Tidak perlu token, langsung pakai.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
-                  <span><strong className="text-gray-700 dark:text-gray-300">HP Turbo:</strong> Lokal 3-5 detik di HP. Privat, tidak ada upload. Cocok untuk HP dengan koneksi bagus.</span>
+                  <span><strong className="text-gray-700 dark:text-slate-300">HP Turbo:</strong> Lokal 3-5 detik di HP. Privat, tidak ada upload ke server.</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 mt-1.5 shrink-0" />
-                  <span><strong className="text-gray-700 dark:text-gray-300">Instant:</strong> Instan 0.05 detik untuk gambar dengan background warna polos / putih.</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
+                  <span><strong className="text-gray-700 dark:text-slate-300">Instant:</strong> 0.05 detik untuk gambar dengan background warna polos/putih.</span>
                 </li>
               </ul>
             </div>
