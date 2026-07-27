@@ -332,13 +332,28 @@ function HeroBackground() {
     };
     window.addEventListener('resize', handleResize);
 
-    const particles = Array.from({ length: 50 }, () => ({
+    const SYMBOLS = ['</>', '{ }', '✦', '★', 'JSON', 'QR', 'AI', 'B64', '[ ]', '#', '⚙️', '✨'];
+
+    // Upward floating glowing particles
+    const particles = Array.from({ length: 45 }, () => ({
       x: Math.random() * width,
       y: Math.random() * height,
-      vx: (Math.random() - 0.5) * 0.7,
-      vy: (Math.random() - 0.5) * 0.7,
-      radius: Math.random() * 2.5 + 1.5,
+      vy: -(Math.random() * 0.9 + 0.4), // move UPWARDS
+      sway: Math.random() * Math.PI * 2,
+      radius: Math.random() * 3 + 1.5,
       alpha: Math.random() * 0.6 + 0.3,
+    }));
+
+    // Upward floating tech symbols & objects
+    const floatingObjects = Array.from({ length: 20 }, () => ({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      vy: -(Math.random() * 0.7 + 0.3), // move UPWARDS
+      sway: Math.random() * Math.PI * 2,
+      symbol: SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
+      fontSize: Math.floor(Math.random() * 8 + 12),
+      rotation: (Math.random() - 0.5) * 0.4,
+      alpha: Math.random() * 0.5 + 0.35,
     }));
 
     const render = () => {
@@ -346,8 +361,8 @@ function HeroBackground() {
 
       const isDark = document.documentElement.classList.contains('dark');
 
-      // Grid mesh lines
-      ctx.strokeStyle = isDark ? 'rgba(255, 115, 0, 0.12)' : 'rgba(255, 115, 0, 0.15)';
+      // Grid mesh lines in background
+      ctx.strokeStyle = isDark ? 'rgba(255, 115, 0, 0.08)' : 'rgba(255, 115, 0, 0.12)';
       ctx.lineWidth = 1;
 
       const gridSize = 40;
@@ -364,13 +379,16 @@ function HeroBackground() {
         ctx.stroke();
       }
 
-      // Floating nodes & connecting lines
+      // Draw & update upward rising particles
       particles.forEach((p, i) => {
-        p.x += p.vx;
         p.y += p.vy;
+        p.sway += 0.02;
+        p.x += Math.sin(p.sway) * 0.5;
 
-        if (p.x < 0 || p.x > width) p.vx *= -1;
-        if (p.y < 0 || p.y > height) p.vy *= -1;
+        if (p.y < -20) {
+          p.y = height + 20;
+          p.x = Math.random() * width;
+        }
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
@@ -382,16 +400,40 @@ function HeroBackground() {
         for (let j = i + 1; j < particles.length; j++) {
           const p2 = particles[j];
           const dist = Math.hypot(p.x - p2.x, p.y - p2.y);
-          if (dist < 130) {
+          if (dist < 110) {
             ctx.beginPath();
             ctx.moveTo(p.x, p.y);
             ctx.lineTo(p2.x, p2.y);
             ctx.strokeStyle = isDark
-              ? `rgba(251, 146, 60, ${(1 - dist / 130) * 0.35})`
-              : `rgba(249, 115, 22, ${(1 - dist / 130) * 0.3})`;
+              ? `rgba(251, 146, 60, ${(1 - dist / 110) * 0.25})`
+              : `rgba(249, 115, 22, ${(1 - dist / 110) * 0.2})`;
             ctx.stroke();
           }
         }
+      });
+
+      // Draw & update upward rising tech symbols & objects
+      floatingObjects.forEach((obj) => {
+        obj.y += obj.vy;
+        obj.sway += 0.015;
+        obj.x += Math.sin(obj.sway) * 0.6;
+
+        if (obj.y < -30) {
+          obj.y = height + 30;
+          obj.x = Math.random() * width;
+        }
+
+        ctx.save();
+        ctx.translate(obj.x, obj.y);
+        ctx.rotate(obj.rotation);
+        ctx.font = `bold ${obj.fontSize}px system-ui, monospace`;
+        ctx.fillStyle = isDark
+          ? `rgba(251, 146, 60, ${obj.alpha})`
+          : `rgba(249, 115, 22, ${obj.alpha * 0.95})`;
+        ctx.shadowColor = 'rgba(249, 115, 22, 0.5)';
+        ctx.shadowBlur = 8;
+        ctx.fillText(obj.symbol, 0, 0);
+        ctx.restore();
       });
 
       animationFrameId = requestAnimationFrame(render);
