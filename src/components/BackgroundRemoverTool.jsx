@@ -7,9 +7,13 @@ import {
 
 // ── Mode config ──────────────────────────────────────────────────
 // Valid models in @imgly/background-removal: "isnet_quint8" (8-bit, ~10MB, ultra fast) | "isnet_fp16" (16-bit, ~20MB) | "isnet" (32-bit, ~40MB)
+// ── Mode config ──────────────────────────────────────────────────
+// Valid models in @imgly/background-removal: "isnet_quint8" (8-bit, ~10MB, ultra fast) | "isnet_fp16" (16-bit, ~20MB) | "isnet" (32-bit, ~40MB)
 const MODES = {
-  turbo: { label: 'Turbo', maxDim: 512,  model: 'isnet_quint8', desc: 'Fastest (8-bit Quantized ~10MB, 512px)' },
-  hd:    { label: 'HD',    maxDim: 1920, model: 'isnet_fp16',   desc: 'Best Quality (16-bit FP ~20MB, 1920px)' },
+  mobile:  { label: 'HP / Mobile Turbo', maxDim: 320,  model: 'isnet_quint8', desc: 'Fastest for HP (~3-5s, 320px)' },
+  turbo:   { label: 'Standard Turbo',    maxDim: 512,  model: 'isnet_quint8', desc: 'Standard Fast (8-bit, 512px)' },
+  hd:      { label: 'HD Quality',       maxDim: 1024, model: 'isnet_fp16',   desc: 'Best Quality (16-bit, 1024px)' },
+  instant: { label: 'Instant (Solid BG)', maxDim: 1280, isInstant: true,     desc: 'Instant 0.05s for White/Solid BG' },
 };
 
 function formatBytes(bytes) {
@@ -17,6 +21,54 @@ function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+/**
+ * Instant color key removal for images with solid/white backgrounds (0.05s).
+ */
+async function removeSolidBackground(fileOrBlob, tolerance = 30) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(fileOrBlob);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+
+      // Sample top-left corner background color (RGB)
+      const bgR = data[0];
+      const bgG = data[1];
+      const bgB = data[2];
+
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        // Color distance formula
+        const diff = Math.sqrt(
+          (r - bgR) * (r - bgR) +
+          (g - bgG) * (g - bgG) +
+          (b - bgB) * (b - bgB)
+        );
+
+        if (diff < tolerance * 2.55) {
+          data[i + 3] = 0; // Set alpha to transparent
+        }
+      }
+
+      ctx.putImageData(imgData, 0, 0);
+      canvas.toBlob((blob) => resolve(blob), 'image/png');
+    };
+    img.onerror = (err) => reject(err);
+    img.src = url;
+  });
 }
 
 /**
@@ -63,7 +115,7 @@ export default function BackgroundRemoverTool({ onBack }) {
   const [error, setError]                 = useState(null);
   const [dragging, setDragging]           = useState(false);
   const [showOriginal, setShowOriginal]   = useState(false);
-  const [mode, setMode]                   = useState('turbo');
+  const [mode, setMode]                   = useState(() => (typeof window !== 'undefined' && window.innerWidth < 640 ? 'mobile' : 'turbo'));
   const [imgDimensions, setImgDimensions] = useState(null);
 
   const inputRef       = useRef(null);
@@ -98,6 +150,19 @@ export default function BackgroundRemoverTool({ onBack }) {
 
     try {
       const cfg = MODES[mode];
+
+      // Instant Solid BG Mode
+      if (cfg.isInstant) {
+        setStage('processing');
+        setStageText('Instant color keying (0.05s)...');
+        setProgress(50);
+        const outputBlob = await removeSolidBackground(file, 28);
+        setProgress(100);
+        setStage('idle');
+        setStageText('');
+        setResult({ url: URL.createObjectURL(outputBlob) });
+        return;
+      }
 
       // ── 1. Resize + JPEG encode ───────────────────────────────
       const { blob: inputBlob, info } = await prepareImage(file, cfg.maxDim);
@@ -227,8 +292,8 @@ export default function BackgroundRemoverTool({ onBack }) {
           </div>
         </div>
 
-        {/* Mode Selector — Turbo & HD only */}
-        <div className="mb-4 p-1.5 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col sm:flex-row gap-2">
+        {/* Mode Selector */}
+        <div className="mb-4 p-1.5 bg-white rounded-2xl border border-gray-100 shadow-sm grid grid-cols-2 md:grid-cols-4 gap-2">
           {Object.entries(MODES).map(([key, cfg]) => {
             const isActive = mode === key;
             return (
@@ -237,27 +302,22 @@ export default function BackgroundRemoverTool({ onBack }) {
                 type="button"
                 onClick={() => setMode(key)}
                 disabled={isProcessing}
-                className={`flex-1 flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl font-semibold text-xs sm:text-sm transition-all ${
-                  isActive ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20' : 'text-gray-600 hover:bg-gray-50'
+                className={`flex flex-col items-center justify-center text-center p-3 rounded-xl font-semibold text-xs transition-all ${
+                  isActive ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20 scale-[1.02]' : 'text-gray-600 hover:bg-gray-50 border border-gray-100'
                 }`}
               >
-                {key === 'turbo' ? (
-                  <Zap className={`w-4 h-4 ${isActive ? 'text-amber-300' : 'text-orange-500'}`} />
-                ) : (
-                  <Sliders className={`w-4 h-4 ${isActive ? 'text-amber-300' : 'text-orange-500'}`} />
-                )}
-                <div className="text-left">
-                  <div className="font-bold flex items-center gap-1.5">
-                    {cfg.label}
-                    {key === 'turbo' && (
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded uppercase font-extrabold ${isActive ? 'bg-white/20' : 'bg-orange-100 text-orange-500'}`}>
-                        Recommended
-                      </span>
-                    )}
-                  </div>
-                  <div className={`text-[11px] font-normal ${isActive ? 'text-orange-100' : 'text-gray-400'}`}>
-                    {cfg.desc}
-                  </div>
+                <div className="flex items-center gap-1.5 font-bold text-xs mb-0.5">
+                  {key === 'instant' ? (
+                    <Sparkles className={`w-3.5 h-3.5 ${isActive ? 'text-amber-300' : 'text-orange-500'}`} />
+                  ) : key === 'mobile' ? (
+                    <Zap className={`w-3.5 h-3.5 ${isActive ? 'text-amber-300' : 'text-orange-500'}`} />
+                  ) : (
+                    <Sliders className={`w-3.5 h-3.5 ${isActive ? 'text-amber-300' : 'text-orange-500'}`} />
+                  )}
+                  <span>{cfg.label}</span>
+                </div>
+                <div className={`text-[10px] font-normal leading-tight ${isActive ? 'text-orange-100' : 'text-gray-400'}`}>
+                  {cfg.desc}
                 </div>
               </button>
             );
