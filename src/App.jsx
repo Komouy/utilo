@@ -315,53 +315,74 @@ function Header({ onHomeClick, onRequestTool, onSelectCategory, selectedCategory
 
 function Hero({ searchQuery, setSearchQuery, toolCount, onOpenCommandPalette }) {
   return (
-    <section className="text-center py-12 md:py-16 px-4 max-w-4xl mx-auto">
+    <section className="relative text-center py-12 md:py-20 px-4 max-w-4xl mx-auto overflow-visible">
+      {/* Animated Ambient Background Glow Orbs */}
+      <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-full max-w-4xl h-[450px] pointer-events-none -z-10 overflow-hidden">
+        <div className="absolute -top-10 left-10 w-72 h-72 bg-gradient-to-tr from-orange-500/30 via-amber-400/20 to-transparent rounded-full blur-3xl animate-float-slow" />
+        <div className="absolute top-20 right-10 w-80 h-80 bg-gradient-to-bl from-amber-500/25 via-orange-500/20 to-transparent rounded-full blur-3xl animate-float-reverse" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-orange-400/10 dark:bg-orange-500/15 rounded-full blur-[100px] animate-pulse" />
+      </div>
+
+      {/* Top Floating Badge */}
+      <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-orange-500/10 dark:bg-orange-500/20 border border-orange-500/30 text-orange-600 dark:text-orange-400 text-xs font-bold mb-6 backdrop-blur-md shadow-sm animate-bounce duration-1000">
+        <Sparkles className="w-3.5 h-3.5 text-orange-500 animate-spin" />
+        <span className="tracking-wide">✨ Fast, Free & 100% Private Browser Tools</span>
+      </div>
+
+      {/* Main Headline */}
       <h1 className="text-4xl md:text-6xl font-extrabold text-gray-900 dark:text-slate-100 tracking-tight leading-tight mb-6">
-        All the tools you need, <br /> in <span className="text-orange-500 dark:text-orange-400">one place</span>
+        All the tools you need, <br /> in <span className="bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 bg-clip-text text-transparent animate-text-shimmer">one place</span>
       </h1>
-      <p className="text-gray-500 dark:text-slate-400 text-base md:text-lg mb-8 max-w-2xl mx-auto">
-        The complete web tools collection — QR Code, JSON Formatter, Base64, Image Converter, & AI Background Remover. Free, fast, 100% local in browser.
+      
+      <p className="text-gray-500 dark:text-slate-400 text-base md:text-lg mb-8 max-w-2xl mx-auto leading-relaxed">
+        The complete web tools collection — QR Code, JSON Formatter, Base64, Image Converter, & AI Background Remover. Fast, private, and 100% local in browser.
       </p>
       
+      {/* Search Input Bar with Glowing Focus */}
       <div className="relative max-w-2xl mx-auto mb-8 group">
-        <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none transition-colors group-focus-within:text-orange-500 text-gray-400">
-          <Search className="h-5 w-5" />
-        </div>
-        <input 
-          type="text" 
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search tools, e.g. 'JSON', 'QR Code', 'Base64'..." 
-          className="w-full pl-14 pr-24 py-4 rounded-full border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-50 dark:focus:ring-orange-500/10 shadow-sm text-gray-700 dark:text-slate-100 transition-all text-base placeholder-gray-400 dark:placeholder-slate-500"
-        />
-        <div className="absolute inset-y-0 right-3 flex items-center gap-1.5">
-          {searchQuery ? (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 rounded-full"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          ) : (
-            <button
-              onClick={onOpenCommandPalette}
-              className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-slate-800 text-[11px] font-mono text-gray-400 dark:text-slate-500 border border-gray-200 dark:border-slate-700/60 hover:text-orange-500 dark:hover:text-orange-400 transition-colors"
-            >
-              <span>Ctrl + K</span>
-            </button>
-          )}
+        <div className="absolute -inset-1 bg-gradient-to-r from-orange-500 to-amber-500 rounded-full blur-md opacity-25 group-hover:opacity-60 transition duration-500 group-focus-within:opacity-100" />
+        
+        <div className="relative flex items-center">
+          <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none transition-colors group-focus-within:text-orange-500 text-gray-400">
+            <Search className="h-5 w-5" />
+          </div>
+          <input 
+            type="text" 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search tools, e.g. 'JSON', 'QR Code', 'Base64'..." 
+            className="w-full pl-14 pr-24 py-4 rounded-full border border-gray-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md focus:outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/20 shadow-lg text-gray-700 dark:text-slate-100 transition-all text-base placeholder-gray-400 dark:placeholder-slate-500"
+          />
+          <div className="absolute inset-y-0 right-3 flex items-center gap-1.5">
+            {searchQuery ? (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            ) : (
+              <button
+                onClick={onOpenCommandPalette}
+                className="hidden sm:flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-slate-800 text-[11px] font-mono text-gray-400 dark:text-slate-400 border border-gray-200 dark:border-slate-700/60 hover:text-orange-500 dark:hover:text-orange-400 transition-all shadow-sm"
+              >
+                <span>Ctrl + K</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
       
+      {/* Stats Chips with Hover Bounce */}
       <div className="flex flex-wrap justify-center gap-3 text-xs sm:text-sm font-medium">
-        <span className="flex items-center gap-2 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-300 px-4 py-2 rounded-full border border-gray-200 dark:border-slate-800 shadow-sm">
-          <Grid className="w-4 h-4 text-orange-400" /> {toolCount} Tools Available
+        <span className="flex items-center gap-2 bg-white/90 dark:bg-slate-900/90 text-gray-600 dark:text-slate-300 px-4 py-2 rounded-full border border-gray-200/80 dark:border-slate-800 shadow-sm hover:scale-105 transition-transform cursor-default">
+          <Grid className="w-4 h-4 text-orange-500 animate-pulse" /> {toolCount} Tools Available
         </span>
-        <span className="flex items-center gap-2 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-300 px-4 py-2 rounded-full border border-gray-200 dark:border-slate-800 shadow-sm">
-          <Flame className="w-4 h-4 text-orange-400" /> 100% Free
+        <span className="flex items-center gap-2 bg-white/90 dark:bg-slate-900/90 text-gray-600 dark:text-slate-300 px-4 py-2 rounded-full border border-gray-200/80 dark:border-slate-800 shadow-sm hover:scale-105 transition-transform cursor-default">
+          <Flame className="w-4 h-4 text-orange-500 animate-bounce" /> 100% Free
         </span>
-        <span className="flex items-center gap-2 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-300 px-4 py-2 rounded-full border border-gray-200 dark:border-slate-800 shadow-sm">
-          <FileBox className="w-4 h-4 text-orange-400" /> No Server Upload
+        <span className="flex items-center gap-2 bg-white/90 dark:bg-slate-900/90 text-gray-600 dark:text-slate-300 px-4 py-2 rounded-full border border-gray-200/80 dark:border-slate-800 shadow-sm hover:scale-105 transition-transform cursor-default">
+          <FileBox className="w-4 h-4 text-orange-500" /> No Server Upload
         </span>
       </div>
     </section>
