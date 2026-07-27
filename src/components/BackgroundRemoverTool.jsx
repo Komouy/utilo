@@ -205,7 +205,7 @@ export default function BackgroundRemoverTool({ onBack }) {
   const isProcessing = ['preparing', 'loading', 'fetching', 'processing'].includes(stage);
 
   return (
-    <div className="min-h-screen bg-[#fafafa] pb-24">
+    <div className="min-h-screen bg-transparent pb-24">
       <div className="max-w-4xl mx-auto px-4 pt-4">
 
         {/* Back */}
