@@ -313,37 +313,134 @@ function Header({ onHomeClick, onRequestTool, onSelectCategory, selectedCategory
   );
 }
 
+function HeroBackground() {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let animationFrameId;
+
+    let width = (canvas.width = canvas.parentElement.offsetWidth);
+    let height = (canvas.height = canvas.parentElement.offsetHeight);
+
+    const handleResize = () => {
+      if (!canvas || !canvas.parentElement) return;
+      width = canvas.width = canvas.parentElement.offsetWidth;
+      height = canvas.height = canvas.parentElement.offsetHeight;
+    };
+    window.addEventListener('resize', handleResize);
+
+    const particles = Array.from({ length: 38 }, () => ({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: (Math.random() - 0.5) * 0.4,
+      radius: Math.random() * 2 + 1,
+      alpha: Math.random() * 0.5 + 0.2,
+    }));
+
+    const render = () => {
+      ctx.clearRect(0, 0, width, height);
+
+      const isDark = document.documentElement.classList.contains('dark');
+
+      // Grid mesh lines
+      ctx.strokeStyle = isDark ? 'rgba(255, 115, 0, 0.05)' : 'rgba(255, 115, 0, 0.08)';
+      ctx.lineWidth = 1;
+
+      const gridSize = 45;
+      for (let x = 0; x < width; x += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < height; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+
+      // Floating nodes & connecting lines
+      particles.forEach((p, i) => {
+        p.x += p.vx;
+        p.y += p.vy;
+
+        if (p.x < 0 || p.x > width) p.vx *= -1;
+        if (p.y < 0 || p.y > height) p.vy *= -1;
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = isDark
+          ? `rgba(251, 146, 60, ${p.alpha * 0.9})`
+          : `rgba(249, 115, 22, ${p.alpha})`;
+        ctx.fill();
+
+        for (let j = i + 1; j < particles.length; j++) {
+          const p2 = particles[j];
+          const dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+          if (dist < 120) {
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = isDark
+              ? `rgba(251, 146, 60, ${(1 - dist / 120) * 0.18})`
+              : `rgba(249, 115, 22, ${(1 - dist / 120) * 0.15})`;
+            ctx.stroke();
+          }
+        }
+      });
+
+      animationFrameId = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="absolute inset-0 w-full h-full pointer-events-none -z-10 rounded-3xl"
+    />
+  );
+}
+
 function Hero({ searchQuery, setSearchQuery, toolCount, onOpenCommandPalette }) {
   return (
-    <section className="relative text-center py-12 md:py-20 px-4 max-w-4xl mx-auto overflow-visible">
-      {/* Animated Ambient Background Glow Orbs */}
-      <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-full max-w-4xl h-[450px] pointer-events-none -z-10 overflow-hidden">
-        <div className="absolute -top-10 left-10 w-72 h-72 bg-gradient-to-tr from-orange-500/30 via-amber-400/20 to-transparent rounded-full blur-3xl animate-float-slow" />
-        <div className="absolute top-20 right-10 w-80 h-80 bg-gradient-to-bl from-amber-500/25 via-orange-500/20 to-transparent rounded-full blur-3xl animate-float-reverse" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-orange-400/10 dark:bg-orange-500/15 rounded-full blur-[100px] animate-pulse" />
-      </div>
+    <section className="relative text-center py-12 md:py-20 px-4 max-w-4xl mx-auto overflow-hidden rounded-3xl my-2">
+      {/* Animated Canvas Particle Grid in the background */}
+      <HeroBackground />
 
-      {/* Top Floating Badge */}
-      <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-orange-500/10 dark:bg-orange-500/20 border border-orange-500/30 text-orange-600 dark:text-orange-400 text-xs font-bold mb-6 backdrop-blur-md shadow-sm animate-bounce duration-1000">
-        <Sparkles className="w-3.5 h-3.5 text-orange-500 animate-spin" />
-        <span className="tracking-wide">✨ Fast, Free & 100% Private Browser Tools</span>
+      {/* Ambient Radial Gradient Glow */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-orange-500/10 dark:bg-orange-500/15 rounded-full blur-3xl pointer-events-none -z-10" />
+
+      {/* Clean Static Badge */}
+      <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-orange-500/10 dark:bg-orange-500/20 border border-orange-500/20 text-orange-600 dark:text-orange-400 text-xs font-bold mb-6 backdrop-blur-md">
+        <Sparkles className="w-3.5 h-3.5 text-orange-500" />
+        <span className="tracking-wide">Fast, Free & 100% Private Browser Tools</span>
       </div>
 
       {/* Main Headline */}
       <h1 className="text-4xl md:text-6xl font-extrabold text-gray-900 dark:text-slate-100 tracking-tight leading-tight mb-6">
-        All the tools you need, <br /> in <span className="bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 bg-clip-text text-transparent animate-text-shimmer">one place</span>
+        All the tools you need, <br /> in <span className="text-orange-500 dark:text-orange-400">one place</span>
       </h1>
       
       <p className="text-gray-500 dark:text-slate-400 text-base md:text-lg mb-8 max-w-2xl mx-auto leading-relaxed">
         The complete web tools collection — QR Code, JSON Formatter, Base64, Image Converter, & AI Background Remover. Fast, private, and 100% local in browser.
       </p>
       
-      {/* Search Input Bar with Glowing Focus */}
+      {/* Search Input Bar */}
       <div className="relative max-w-2xl mx-auto mb-8 group">
-        <div className="absolute -inset-1 bg-gradient-to-r from-orange-500 to-amber-500 rounded-full blur-md opacity-25 group-hover:opacity-60 transition duration-500 group-focus-within:opacity-100" />
-        
         <div className="relative flex items-center">
-          <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none transition-colors group-focus-within:text-orange-500 text-gray-400">
+          <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-gray-400 group-focus-within:text-orange-500 transition-colors">
             <Search className="h-5 w-5" />
           </div>
           <input 
@@ -351,7 +448,7 @@ function Hero({ searchQuery, setSearchQuery, toolCount, onOpenCommandPalette }) 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search tools, e.g. 'JSON', 'QR Code', 'Base64'..." 
-            className="w-full pl-14 pr-24 py-4 rounded-full border border-gray-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md focus:outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/20 shadow-lg text-gray-700 dark:text-slate-100 transition-all text-base placeholder-gray-400 dark:placeholder-slate-500"
+            className="w-full pl-14 pr-24 py-4 rounded-full border border-gray-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md focus:outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 shadow-md text-gray-700 dark:text-slate-100 transition-all text-base placeholder-gray-400 dark:placeholder-slate-500"
           />
           <div className="absolute inset-y-0 right-3 flex items-center gap-1.5">
             {searchQuery ? (
@@ -373,15 +470,15 @@ function Hero({ searchQuery, setSearchQuery, toolCount, onOpenCommandPalette }) 
         </div>
       </div>
       
-      {/* Stats Chips with Hover Bounce */}
+      {/* Stats Chips */}
       <div className="flex flex-wrap justify-center gap-3 text-xs sm:text-sm font-medium">
-        <span className="flex items-center gap-2 bg-white/90 dark:bg-slate-900/90 text-gray-600 dark:text-slate-300 px-4 py-2 rounded-full border border-gray-200/80 dark:border-slate-800 shadow-sm hover:scale-105 transition-transform cursor-default">
-          <Grid className="w-4 h-4 text-orange-500 animate-pulse" /> {toolCount} Tools Available
+        <span className="flex items-center gap-2 bg-white/90 dark:bg-slate-900/90 text-gray-600 dark:text-slate-300 px-4 py-2 rounded-full border border-gray-200/80 dark:border-slate-800 shadow-sm cursor-default">
+          <Grid className="w-4 h-4 text-orange-500" /> {toolCount} Tools Available
         </span>
-        <span className="flex items-center gap-2 bg-white/90 dark:bg-slate-900/90 text-gray-600 dark:text-slate-300 px-4 py-2 rounded-full border border-gray-200/80 dark:border-slate-800 shadow-sm hover:scale-105 transition-transform cursor-default">
-          <Flame className="w-4 h-4 text-orange-500 animate-bounce" /> 100% Free
+        <span className="flex items-center gap-2 bg-white/90 dark:bg-slate-900/90 text-gray-600 dark:text-slate-300 px-4 py-2 rounded-full border border-gray-200/80 dark:border-slate-800 shadow-sm cursor-default">
+          <Flame className="w-4 h-4 text-orange-500" /> 100% Free
         </span>
-        <span className="flex items-center gap-2 bg-white/90 dark:bg-slate-900/90 text-gray-600 dark:text-slate-300 px-4 py-2 rounded-full border border-gray-200/80 dark:border-slate-800 shadow-sm hover:scale-105 transition-transform cursor-default">
+        <span className="flex items-center gap-2 bg-white/90 dark:bg-slate-900/90 text-gray-600 dark:text-slate-300 px-4 py-2 rounded-full border border-gray-200/80 dark:border-slate-800 shadow-sm cursor-default">
           <FileBox className="w-4 h-4 text-orange-500" /> No Server Upload
         </span>
       </div>
