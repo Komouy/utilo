@@ -1,16 +1,13 @@
 import React, { useState, useRef, useCallback } from 'react';
 import {
   ArrowLeft, Upload, Download, X, RefreshCw,
-  Sparkles, AlertCircle, FileImage, Eye, EyeOff, Zap, Sliders, Info, Cloud, Lock, Key, ExternalLink
+  Sparkles, AlertCircle, FileImage, Eye, EyeOff, Info, Cloud, Bolt, CheckCircle2, Sliders
 } from 'lucide-react';
 
 // ── Mode config ───────────────────────────────────────────────────────────────
 const MODES = {
-  cloud:   { label: 'Cloud AI ☁️',        isCloud: true,  desc: '~2-4 detik via server (tercepat)' },
-  mobile:  { label: '📱 HP Turbo',         maxDim: 320,  model: 'isnet_quint8', desc: 'Lokal (~3-5s, 320px) untuk HP' },
-  turbo:   { label: '⚡ Standard Turbo',  maxDim: 512,  model: 'isnet_quint8', desc: 'Lokal (~30s, 512px) standar' },
-  hd:      { label: '🎨 HD Quality',      maxDim: 1024, model: 'isnet_fp16',   desc: 'Lokal HD kualitas terbaik' },
-  instant: { label: '🪄 Instant',         maxDim: 1280, isInstant: true,      desc: 'Instan <0.1s untuk BG warna polos' },
+  cloud:   { label: 'Cloud AI',   isCloud: true,  desc: '~2-4s via server (fastest)' },
+  instant: { label: 'Instant',    maxDim: 1280, isInstant: true, desc: 'Instant <0.1s for solid color BG' },
 };
 
 // PHP Proxy endpoint (deployed on your cPanel server — hides the HF token)
@@ -25,7 +22,7 @@ function formatBytes(bytes) {
 
 /** Remove background via PHP proxy → HF API (cloud, fast ~2-4s, no token needed by user) */
 async function removeBackgroundCloud(file, onProgress) {
-  onProgress?.('Mengirim gambar ke server...', 20);
+  onProgress?.('Sending image to server...', 20);
 
   const formData = new FormData();
   formData.append('image', file);
@@ -35,7 +32,7 @@ async function removeBackgroundCloud(file, onProgress) {
     body: formData,
   });
 
-  onProgress?.('Memproses AI di server...', 60);
+  onProgress?.('Processing AI on server...', 60);
 
   if (!res.ok) {
     let errMsg = `Server error ${res.status}`;
@@ -49,14 +46,14 @@ async function removeBackgroundCloud(file, onProgress) {
   const contentType = res.headers.get('content-type') || '';
   if (contentType.includes('application/json')) {
     const errJson = await res.json();
-    throw new Error(errJson?.error || 'Gagal memproses di server.');
+    throw new Error(errJson?.error || 'Failed to process on server.');
   }
 
-  onProgress?.('Menerima hasil...', 90);
+  onProgress?.('Receiving result...', 90);
   const blob = await res.blob();
-  if (!blob || blob.size < 100) throw new Error('Hasil tidak valid dari server. Coba lagi.');
+  if (!blob || blob.size < 100) throw new Error('Invalid result from server. Please try again.');
 
-  onProgress?.('Selesai!', 100);
+  onProgress?.('Done!', 100);
   return blob;
 }
 
@@ -137,7 +134,7 @@ export default function BackgroundRemoverTool({ onBack }) {
   const removeFnRef = useRef(null);
 
   const handleFile = useCallback((f) => {
-    if (!f || !f.type.startsWith('image/')) { setError('File harus gambar (JPG, PNG, WebP).'); return; }
+    if (!f || !f.type.startsWith('image/')) { setError('File must be an image (JPG, PNG, WebP).'); return; }
     setError(null); setResult(null); setStage('idle'); setProgress(0); setStageText('');
     setShowOriginal(false); setFile(f); setImgDimensions(null);
     const url = URL.createObjectURL(f);
@@ -158,7 +155,7 @@ export default function BackgroundRemoverTool({ onBack }) {
     if (!file) return;
     setError(null); setResult(null);
     setProgress(5); setStage('preparing');
-    setStageText('Menyiapkan gambar...');
+    setStageText('Preparing image...');
 
     try {
       const cfg = MODES[mode];
@@ -166,7 +163,7 @@ export default function BackgroundRemoverTool({ onBack }) {
       // ── Cloud AI via PHP Proxy ──────────────────────────────
       if (cfg.isCloud) {
         setStage('processing');
-        setStageText('Mengirim ke server Cloud AI...');
+        setStageText('Sending to Cloud AI server...');
         setProgress(20);
         const outputBlob = await removeBackgroundCloud(file, (text, pct) => {
           setStageText(text);
@@ -191,14 +188,14 @@ export default function BackgroundRemoverTool({ onBack }) {
       if (info) setImgDimensions(info);
       setProgress(15);
 
-      setStage('loading'); setStageText('Memuat AI engine...');
+      setStage('loading'); setStageText('Loading AI engine...');
       if (!removeFnRef.current) {
         const mod = await import('@imgly/background-removal');
         removeFnRef.current = mod.removeBackground;
       }
       setProgress(25);
 
-      setStage('fetching'); setStageText('Mendownload model AI...');
+      setStage('fetching'); setStageText('Downloading AI model...');
 
       const runInference = async (targetDevice) => {
         return await removeFnRef.current(inputBlob, {
@@ -213,16 +210,16 @@ export default function BackgroundRemoverTool({ onBack }) {
                 const totalMB  = (total / (1024 * 1024)).toFixed(1);
                 const pct      = 25 + Math.round((current / total) * 45);
                 setProgress(pct);
-                setStageText(`Download model AI (${loadedMB} MB / ${totalMB} MB)...`);
+                setStageText(`Downloading AI model (${loadedMB} MB / ${totalMB} MB)...`);
               }
             } else if (key.startsWith('compute')) {
               setStage('processing');
               if (total > 0) {
                 const pct = 70 + Math.round((current / total) * 28);
                 setProgress(pct);
-                setStageText(`AI menghapus background (${Math.round((current / total) * 100)}%)...`);
+                setStageText(`AI removing background (${Math.round((current / total) * 100)}%)...`);
               } else {
-                setProgress(85); setStageText('AI memproses gambar...');
+                setProgress(85); setStageText('AI processing image...');
               }
             }
           },
@@ -238,7 +235,7 @@ export default function BackgroundRemoverTool({ onBack }) {
         outputBlob = await Promise.race([runInference(device), timeoutPromise]);
       } catch (firstErr) {
         if (device === 'gpu') {
-          setStageText('GPU error, beralih ke CPU...');
+          setStageText('GPU error, switching to CPU...');
           outputBlob = await Promise.race([runInference('cpu'), timeoutPromise]);
         } else { throw firstErr; }
       }
@@ -249,9 +246,9 @@ export default function BackgroundRemoverTool({ onBack }) {
     } catch (err) {
       console.error(err);
       if (err.message === 'TIMEOUT') {
-        setError('Proses timeout. Coba gunakan mode Cloud AI ☁️ atau pilih mode HP Turbo untuk HP.');
+        setError('Process timed out. Try using Cloud AI mode or Instant mode for solid color backgrounds.');
       } else {
-        setError(err.message || 'Gagal memproses. Coba gunakan Cloud AI atau gambar yang lebih kecil.');
+        setError(err.message || 'Processing failed. Try using Cloud AI or a smaller image.');
       }
       setStage('idle'); setProgress(0); setStageText('');
     }
@@ -293,27 +290,29 @@ export default function BackgroundRemoverTool({ onBack }) {
           <div>
             <h1 className="text-2xl font-extrabold text-gray-900 dark:text-slate-100">Background Remover AI</h1>
             <p className="text-gray-500 dark:text-slate-400 text-sm mt-0.5">
-              Hapus background gambar dengan AI — Cloud cepat atau Lokal privat.
+              Remove image backgrounds with AI — fast Cloud or private Instant mode.
             </p>
           </div>
         </div>
 
         {/* Mode Selector */}
-        <div className="mb-3 p-1.5 bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm grid grid-cols-2 md:grid-cols-5 gap-1.5">
+        <div className="mb-3 p-1.5 bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm grid grid-cols-2 gap-1.5">
           {Object.entries(MODES).map(([key, cfg]) => {
             const isActive = mode === key;
+            const ModeIcon = key === 'cloud' ? Cloud : Bolt;
             return (
               <button
                 key={key}
                 type="button"
                 onClick={() => setMode(key)}
                 disabled={isProcessing}
-                className={`flex flex-col items-center justify-center text-center p-2.5 rounded-xl font-semibold text-xs transition-all ${
+                className={`flex flex-col items-center justify-center text-center p-3 rounded-xl font-semibold text-xs transition-all ${
                   isActive
                     ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25 scale-[1.02]'
                     : 'text-gray-600 dark:text-slate-300 hover:bg-orange-50 dark:hover:bg-slate-800 border border-gray-100 dark:border-slate-800'
                 }`}
               >
+                <ModeIcon className={`w-4 h-4 mb-1 ${isActive ? 'text-white' : 'text-orange-400'}`} />
                 <div className="font-bold text-xs mb-0.5">{cfg.label}</div>
                 <div className={`text-[10px] font-normal leading-tight ${isActive ? 'text-orange-100' : 'text-gray-400 dark:text-slate-500'}`}>
                   {cfg.desc}
@@ -329,9 +328,9 @@ export default function BackgroundRemoverTool({ onBack }) {
             <div className="flex items-center gap-2.5">
               <Cloud className="w-4 h-4 text-orange-500 shrink-0" />
               <div>
-                <p className="text-xs font-bold text-orange-700 dark:text-orange-400">Mode Cloud AI — Server UtiloBox</p>
-                <p className="text-[11px] text-orange-500 dark:text-orange-400/80">
-                  ✅ Tidak perlu token — langsung pakai, hasil dalam ~2-4 detik
+                <p className="text-xs font-bold text-orange-700 dark:text-orange-400">Cloud AI Mode — UtiloBox Server</p>
+                <p className="text-[11px] text-orange-500 dark:text-orange-400/80 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-orange-500 shrink-0" /> No token needed — use instantly, results in ~2-4 seconds
                 </p>
               </div>
             </div>
@@ -344,7 +343,7 @@ export default function BackgroundRemoverTool({ onBack }) {
         {/* Local Engine Selector (only for local modes) */}
         {!isCloudMode && mode !== 'instant' && (
           <div className="mb-4 px-4 py-2 bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800 shadow-sm flex items-center justify-between text-xs text-gray-500">
-            <span className="font-medium flex items-center gap-1.5">⚙️ Processing Engine:</span>
+            <span className="font-medium flex items-center gap-1.5"><Sliders className="w-3.5 h-3.5 text-gray-400" /> Processing Engine:</span>
             <div className="flex gap-1">
               {['gpu', 'cpu'].map((d) => (
                 <button
@@ -407,10 +406,10 @@ export default function BackgroundRemoverTool({ onBack }) {
                     <Upload className="w-8 h-8 text-orange-400" />
                   </div>
                   <p className="font-semibold text-gray-700 dark:text-slate-200 mb-1">
-                    {dragging ? 'Drop image here' : 'Pilih atau Drag & Drop Gambar'}
+                    {dragging ? 'Drop image here' : 'Choose or Drag & Drop Image'}
                   </p>
                   <p className="text-sm text-gray-400 dark:text-slate-500">
-                    atau <span className="text-orange-500 font-semibold">klik untuk browse</span>
+                    or <span className="text-orange-500 font-semibold">click to browse</span>
                   </p>
                   <p className="text-xs text-gray-300 dark:text-slate-600 mt-2">Supports JPG, PNG, WebP</p>
                 </>
@@ -429,8 +428,8 @@ export default function BackgroundRemoverTool({ onBack }) {
               }`}
             >
               {isProcessing
-                ? <><RefreshCw className="w-4 h-4 animate-spin" />Memproses...</>
-                : <><Sparkles className="w-4 h-4" />Hapus Background Sekarang</>
+                ? <><RefreshCw className="w-4 h-4 animate-spin" />Processing...</>
+                : <><Sparkles className="w-4 h-4" />Remove Background Now</>
               }
             </button>
 
@@ -440,7 +439,7 @@ export default function BackgroundRemoverTool({ onBack }) {
                 <div className="flex justify-between text-xs font-bold text-gray-700 dark:text-slate-200">
                   <span className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-orange-500 animate-ping" />
-                    {stageText || 'Memproses...'}
+                    {stageText || 'Processing...'}
                   </span>
                   <span className="text-orange-600 dark:text-orange-400 font-extrabold tabular-nums">{progress}%</span>
                 </div>
@@ -476,15 +475,15 @@ export default function BackgroundRemoverTool({ onBack }) {
                 <>
                   <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-50 dark:border-slate-800">
                     <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">
-                      {showOriginal ? 'Original Image' : 'Background Removed ✅'}
+                      {showOriginal ? 'Original Image' : <span className="flex items-center gap-1.5">Background Removed <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /></span>}
                     </span>
                     <button
                       onClick={() => setShowOriginal((v) => !v)}
                       className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-orange-500 transition-colors px-3 py-1.5 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-500/10"
                     >
                       {showOriginal
-                        ? <><Eye className="w-3.5 h-3.5" /> Lihat Hasil</>
-                        : <><EyeOff className="w-3.5 h-3.5" /> Lihat Original</>
+                        ? <><Eye className="w-3.5 h-3.5" /> View Result</>
+                        : <><EyeOff className="w-3.5 h-3.5" /> View Original</>
                       }
                     </button>
                   </div>
@@ -506,7 +505,7 @@ export default function BackgroundRemoverTool({ onBack }) {
                       onClick={handleReset}
                       className="w-full mt-2 py-2.5 rounded-xl font-semibold text-gray-500 dark:text-slate-400 hover:text-orange-500 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-all text-sm flex items-center justify-center gap-1.5"
                     >
-                      <RefreshCw className="w-3.5 h-3.5" />Proses Gambar Lain
+                      <RefreshCw className="w-3.5 h-3.5" />Process Another Image
                     </button>
                   </div>
                 </>
@@ -515,8 +514,8 @@ export default function BackgroundRemoverTool({ onBack }) {
                   <div className="p-5 bg-gray-50 dark:bg-slate-800 rounded-full mb-4">
                     <FileImage className="w-10 h-10 text-gray-200 dark:text-slate-600" />
                   </div>
-                  <p className="text-gray-400 dark:text-slate-500 text-sm font-medium">Hasil AI akan muncul di sini</p>
-                  <p className="text-gray-300 dark:text-slate-600 text-xs mt-1">Upload gambar lalu klik Hapus Background</p>
+                  <p className="text-gray-400 dark:text-slate-500 text-sm font-medium">AI result will appear here</p>
+                  <p className="text-gray-300 dark:text-slate-600 text-xs mt-1">Upload an image then click Remove Background</p>
                 </div>
               )}
             </div>
@@ -524,20 +523,16 @@ export default function BackgroundRemoverTool({ onBack }) {
             {/* Info Card */}
             <div className="rounded-2xl bg-orange-50/60 dark:bg-orange-500/5 border border-orange-100 dark:border-orange-500/20 px-5 py-4">
               <p className="text-xs font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                <Info className="w-3.5 h-3.5 text-orange-500" /> Panduan Mode
+                <Info className="w-3.5 h-3.5 text-orange-500" /> Mode Guide
               </p>
               <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-2">
                 <li className="flex items-start gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
-                  <span><strong className="text-gray-700 dark:text-slate-300">Cloud AI ☁️:</strong> Tercepat ~2-4 detik. Tidak perlu token, langsung pakai.</span>
+                  <Cloud className="w-3.5 h-3.5 text-orange-400 mt-0.5 shrink-0" />
+                  <span><strong className="text-gray-700 dark:text-slate-300">Cloud AI:</strong> Fastest at ~2-4 seconds. No token needed, ready to use.</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
-                  <span><strong className="text-gray-700 dark:text-slate-300">HP Turbo:</strong> Lokal 3-5 detik di HP. Privat, tidak ada upload ke server.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
-                  <span><strong className="text-gray-700 dark:text-slate-300">Instant:</strong> 0.05 detik untuk gambar dengan background warna polos/putih.</span>
+                  <Bolt className="w-3.5 h-3.5 text-orange-400 mt-0.5 shrink-0" />
+                  <span><strong className="text-gray-700 dark:text-slate-300">Instant:</strong> 0.05 seconds for images with solid color or white backgrounds.</span>
                 </li>
               </ul>
             </div>
