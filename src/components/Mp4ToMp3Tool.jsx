@@ -2,8 +2,9 @@ import React, { useState, useRef, useCallback } from 'react';
 import {
   ArrowLeft, Upload, Music, Download, RefreshCw,
   X, Shield, Zap, CheckCircle2, AlertCircle, FileVideo,
-  Volume2, Clock, Info
+  Volume2, Clock, Info, FileAudio
 } from 'lucide-react';
+import lamejs from 'lamejs';
 
 function formatBytes(bytes) {
   if (!bytes) return '—';
@@ -20,43 +21,44 @@ function formatDuration(seconds) {
 }
 
 const BITRATE_OPTIONS = [
-  { label: '128 kbps', desc: 'Standar', value: 128000 },
-  { label: '192 kbps', desc: 'Bagus', value: 192000 },
-  { label: '256 kbps', desc: 'Tinggi', value: 256000 },
-  { label: '320 kbps', desc: 'Terbaik', value: 320000 },
+  { label: '128 kbps', desc: 'Standar', value: 128 },
+  { label: '192 kbps', desc: 'Bagus', value: 192 },
+  { label: '256 kbps', desc: 'Tinggi', value: 256 },
+  { label: '320 kbps', desc: 'Terbaik', value: 320 },
 ];
 
 export default function Mp4ToMp3Tool({ onBack }) {
   const [file, setFile] = useState(null);
-  const [videoInfo, setVideoInfo] = useState(null); // { duration, size, name }
+  const [videoInfo, setVideoInfo] = useState(null);
   const [bitrate, setBitrate] = useState(BITRATE_OPTIONS[1]);
   const [status, setStatus] = useState('idle'); // idle | processing | done | error
   const [progress, setProgress] = useState(0);
-  const [result, setResult] = useState(null); // { url, size, name }
+  const [progressLabel, setProgressLabel] = useState('');
+  const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [dragging, setDragging] = useState(false);
 
   const inputRef = useRef(null);
-  const audioCtxRef = useRef(null);
 
   const reset = () => {
+    if (result?.url) URL.revokeObjectURL(result.url);
     setFile(null);
     setVideoInfo(null);
     setStatus('idle');
     setProgress(0);
+    setProgressLabel('');
     setResult(null);
     setError(null);
-    if (audioCtxRef.current) {
-      audioCtxRef.current.close();
-      audioCtxRef.current = null;
-    }
   };
 
   const handleFile = useCallback((f) => {
     if (!f) return;
-    const isVideo = f.type.startsWith('video/') || /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(f.name);
-    if (!isVideo) {
-      setError('File harus berupa video (MP4, MOV, MKV, WebM, dll.)');
+    const isAudioVideo =
+      f.type.startsWith('video/') ||
+      f.type.startsWith('audio/') ||
+      /\.(mp4|mov|avi|mkv|webm|m4v|wav|ogg|aac|m4a|flac)$/i.test(f.name);
+    if (!isAudioVideo) {
+      setError('File harus berupa video atau audio (MP4, WAV, MOV, MKV, WebM, dll.)');
       return;
     }
     setError(null);
@@ -64,19 +66,18 @@ export default function Mp4ToMp3Tool({ onBack }) {
     setStatus('idle');
     setFile(f);
 
-    // Read duration via a temporary video element
     const url = URL.createObjectURL(f);
-    const vid = document.createElement('video');
-    vid.preload = 'metadata';
-    vid.onloadedmetadata = () => {
-      setVideoInfo({ duration: vid.duration, size: f.size, name: f.name });
+    const el = document.createElement('video');
+    el.preload = 'metadata';
+    el.onloadedmetadata = () => {
+      setVideoInfo({ duration: el.duration, size: f.size, name: f.name });
       URL.revokeObjectURL(url);
     };
-    vid.onerror = () => {
+    el.onerror = () => {
       setVideoInfo({ duration: null, size: f.size, name: f.name });
       URL.revokeObjectURL(url);
     };
-    vid.src = url;
+    el.src = url;
   }, []);
 
   const onDrop = useCallback((e) => {
@@ -89,105 +90,106 @@ export default function Mp4ToMp3Tool({ onBack }) {
   const onDragOver = (e) => { e.preventDefault(); setDragging(true); };
   const onDragLeave = () => setDragging(false);
 
+  // ── Encode AudioBuffer → MP3 via lamejs ──────────────────────────────────
+  function encodeToMp3(audioBuffer, kbps, onProgress) {
+    const numChannels = audioBuffer.numberOfChannels;
+    const sampleRate = audioBuffer.sampleRate;
+    const isMono = numChannels === 1;
+
+    const mp3Encoder = new lamejs.Mp3Encoder(
+      isMono ? 1 : 2,
+      sampleRate,
+      kbps
+    );
+
+    const leftChannel = audioBuffer.getChannelData(0);
+    const rightChannel = isMono ? leftChannel : audioBuffer.getChannelData(1);
+    const totalSamples = leftChannel.length;
+    const CHUNK = 1152; // lamejs optimal block size
+    const mp3Data = [];
+
+    for (let i = 0; i < totalSamples; i += CHUNK) {
+      const left = float32ToInt16(leftChannel.subarray(i, i + CHUNK));
+      const right = float32ToInt16(rightChannel.subarray(i, i + CHUNK));
+
+      const encoded = isMono
+        ? mp3Encoder.encodeBuffer(left)
+        : mp3Encoder.encodeBuffer(left, right);
+
+      if (encoded.length > 0) mp3Data.push(encoded);
+      if (i % (CHUNK * 100) === 0) onProgress(Math.round((i / totalSamples) * 80) + 15);
+    }
+
+    const flushed = mp3Encoder.flush();
+    if (flushed.length > 0) mp3Data.push(flushed);
+
+    return new Blob(mp3Data, { type: 'audio/mpeg' });
+  }
+
+  function float32ToInt16(float32Array) {
+    const int16 = new Int16Array(float32Array.length);
+    for (let i = 0; i < float32Array.length; i++) {
+      const s = Math.max(-1, Math.min(1, float32Array[i]));
+      int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+    }
+    return int16;
+  }
+
   const handleConvert = async () => {
     if (!file) return;
     setStatus('processing');
-    setProgress(0);
+    setProgress(5);
+    setProgressLabel('Membaca file…');
     setError(null);
     setResult(null);
 
     try {
-      // ── Step 1: Read file as ArrayBuffer ──
-      setProgress(10);
+      // Step 1: Read as ArrayBuffer
       const arrayBuffer = await file.arrayBuffer();
+      setProgress(10);
+      setProgressLabel('Mendekode audio…');
 
-      // ── Step 2: Decode audio via Web Audio API ──
-      setProgress(25);
+      // Step 2: Decode audio
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      audioCtxRef.current = audioCtx;
-
       const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-      setProgress(55);
-
-      // ── Step 3: Re-encode to WAV (PCM) then wrap ──
-      // Web Audio can only export raw PCM; we encode to WAV losslessly.
-      // True MP3 encoding in the browser requires a WASM encoder (too heavy to bundle here),
-      // so we produce a high-quality WAV file — universally compatible and plays everywhere.
-      const wavBlob = audioBufferToWav(audioBuffer);
-      setProgress(90);
-
-      // ── Step 4: Build result ──
-      const baseName = file.name.replace(/\.[^.]+$/, '');
-      const outputName = `${baseName}.wav`;
-      const url = URL.createObjectURL(wavBlob);
-
-      setResult({ url, size: wavBlob.size, name: outputName, duration: audioBuffer.duration });
-      setProgress(100);
-      setStatus('done');
-
       await audioCtx.close();
-      audioCtxRef.current = null;
+      setProgress(15);
+      setProgressLabel('Mengenkode ke MP3…');
+
+      // Step 3: Encode to MP3 (sync, but fast enough for most files)
+      // We yield to the event loop so the UI can update
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const mp3Blob = encodeToMp3(audioBuffer, bitrate.value, (pct) => {
+        setProgress(pct);
+      });
+
+      setProgress(98);
+      setProgressLabel('Menyiapkan file…');
+
+      // Step 4: Build result
+      const baseName = file.name.replace(/\.[^.]+$/, '');
+      const outputName = `${baseName}.mp3`;
+      const url = URL.createObjectURL(mp3Blob);
+
+      setResult({ url, size: mp3Blob.size, name: outputName, duration: audioBuffer.duration });
+      setProgress(100);
+      setProgressLabel('Selesai!');
+      setStatus('done');
     } catch (err) {
       console.error(err);
       setError(
-        err.message?.includes('decod')
-          ? 'Gagal mendekode audio. Pastikan file video memiliki track audio.'
+        err.message?.toLowerCase().includes('decod')
+          ? 'Gagal mendekode audio. Pastikan file memiliki track audio yang valid.'
           : `Konversi gagal: ${err.message || 'Kesalahan tidak diketahui'}`
       );
       setStatus('error');
     }
   };
 
-  // ── WAV encoder ──────────────────────────────────────────────────────────
-  function audioBufferToWav(buffer) {
-    const numChannels = Math.min(buffer.numberOfChannels, 2);
-    const sampleRate = buffer.sampleRate;
-    const format = 1; // PCM
-    const bitsPerSample = 16;
-    const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
-    const blockAlign = (numChannels * bitsPerSample) / 8;
-    const numSamples = buffer.length;
-    const dataSize = numSamples * numChannels * (bitsPerSample / 8);
-
-    const wavBuffer = new ArrayBuffer(44 + dataSize);
-    const view = new DataView(wavBuffer);
-
-    // RIFF header
-    writeString(view, 0, 'RIFF');
-    view.setUint32(4, 36 + dataSize, true);
-    writeString(view, 8, 'WAVE');
-    writeString(view, 12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, format, true);
-    view.setUint16(22, numChannels, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, byteRate, true);
-    view.setUint16(32, blockAlign, true);
-    view.setUint16(34, bitsPerSample, true);
-    writeString(view, 36, 'data');
-    view.setUint32(40, dataSize, true);
-
-    // PCM samples — interleaved channels
-    let offset = 44;
-    for (let i = 0; i < numSamples; i++) {
-      for (let ch = 0; ch < numChannels; ch++) {
-        const channelData = buffer.getChannelData(ch);
-        const sample = Math.max(-1, Math.min(1, channelData[i]));
-        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
-        offset += 2;
-      }
-    }
-
-    return new Blob([wavBuffer], { type: 'audio/wav' });
-  }
-
-  function writeString(view, offset, string) {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
-    }
-  }
-
   // ── UI ───────────────────────────────────────────────────────────────────
+  const isAudio = file && (file.type.startsWith('audio/') || /\.(wav|mp3|ogg|aac|m4a|flac)$/i.test(file.name));
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       {/* Back button */}
@@ -206,10 +208,10 @@ export default function Mp4ToMp3Tool({ onBack }) {
         </div>
         <div>
           <h1 className="text-2xl font-extrabold text-gray-900 dark:text-slate-100">
-            MP4 to Audio Converter
+            Video & Audio ke MP3
           </h1>
           <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
-            Ekstrak audio dari video — 100% lokal di browser, tanpa upload server
+            Konversi MP4, WAV, MOV, MKV → MP3 asli — 100% lokal di browser
           </p>
         </div>
       </div>
@@ -218,9 +220,8 @@ export default function Mp4ToMp3Tool({ onBack }) {
       <div className="flex items-start gap-3 p-4 rounded-2xl bg-orange-50 dark:bg-orange-500/10 border border-orange-100 dark:border-orange-500/20 mb-6 text-sm text-orange-700 dark:text-orange-300">
         <Info className="w-4 h-4 shrink-0 mt-0.5" />
         <span>
-          Konversi menggunakan <strong>Web Audio API</strong> bawaan browser — menghasilkan file{' '}
-          <strong>.WAV</strong> berkualitas tinggi (lossless PCM). Format WAV didukung semua pemutar
-          musik, termasuk VLC, Windows Media Player, dan smartphone.
+          Menggunakan <strong>Web Audio API</strong> + <strong>lamejs</strong> encoder — menghasilkan file{' '}
+          <strong>.MP3</strong> asli langsung di browsermu. File tidak pernah dikirim ke server.
         </span>
       </div>
 
@@ -240,23 +241,23 @@ export default function Mp4ToMp3Tool({ onBack }) {
           <input
             ref={inputRef}
             type="file"
-            accept="video/*,.mp4,.mov,.avi,.mkv,.webm,.m4v"
+            accept="video/*,audio/*,.mp4,.mov,.avi,.mkv,.webm,.m4v,.wav,.ogg,.aac,.m4a,.flac"
             className="hidden"
             onChange={(e) => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }}
           />
           <div className="flex flex-col items-center gap-4">
             <div className={`p-5 rounded-2xl transition-colors ${dragging ? 'bg-orange-100 dark:bg-orange-500/20' : 'bg-gray-100 dark:bg-slate-800'}`}>
-              <FileVideo className={`w-10 h-10 transition-colors ${dragging ? 'text-orange-500' : 'text-gray-400 dark:text-slate-500'}`} />
+              <FileAudio className={`w-10 h-10 transition-colors ${dragging ? 'text-orange-500' : 'text-gray-400 dark:text-slate-500'}`} />
             </div>
             <div>
               <p className="font-bold text-gray-700 dark:text-slate-200 text-lg">
-                {dragging ? 'Lepaskan file di sini' : 'Seret & lepas file video'}
+                {dragging ? 'Lepaskan file di sini' : 'Seret & lepas file video atau audio'}
               </p>
               <p className="text-sm text-gray-400 dark:text-slate-500 mt-1">
                 atau <span className="text-orange-500 font-semibold">klik untuk pilih file</span>
               </p>
               <p className="text-xs text-gray-400 dark:text-slate-500 mt-2">
-                Mendukung: MP4, MOV, MKV, WebM, AVI, M4V
+                Video: MP4, MOV, MKV, WebM, AVI &nbsp;·&nbsp; Audio: WAV, AAC, OGG, FLAC, M4A
               </p>
             </div>
           </div>
@@ -277,7 +278,7 @@ export default function Mp4ToMp3Tool({ onBack }) {
           {/* File card */}
           <div className="flex items-center gap-4 p-4 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl shadow-sm">
             <div className="p-3 rounded-xl bg-orange-50 dark:bg-orange-500/10 text-orange-500">
-              <FileVideo className="w-6 h-6" />
+              {isAudio ? <FileAudio className="w-6 h-6" /> : <FileVideo className="w-6 h-6" />}
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-bold text-gray-800 dark:text-slate-100 text-sm truncate">{file.name}</p>
@@ -303,11 +304,11 @@ export default function Mp4ToMp3Tool({ onBack }) {
             </button>
           </div>
 
-          {/* Bitrate selector (informational — WAV is lossless but label helps UX) */}
+          {/* Bitrate selector */}
           <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl p-5">
             <p className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
               <Volume2 className="w-3.5 h-3.5 text-orange-500" />
-              Kualitas Output
+              Bitrate MP3
             </p>
             <div className="flex flex-wrap gap-2">
               {BITRATE_OPTIONS.map((opt) => (
@@ -328,45 +329,35 @@ export default function Mp4ToMp3Tool({ onBack }) {
               ))}
             </div>
             <p className="text-xs text-gray-400 dark:text-slate-500 mt-3">
-              Output berupa WAV lossless — kualitas audio setara sumber aslinya.
+              Bitrate lebih tinggi = kualitas lebih baik, ukuran file lebih besar. 192 kbps sudah cukup untuk kebanyakan kebutuhan.
             </p>
           </div>
 
-          {/* Convert button */}
+          {/* Convert button / Progress */}
           {status !== 'processing' ? (
             <button
               onClick={handleConvert}
-              disabled={!file}
-              className="w-full py-4 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-base shadow-lg shadow-orange-500/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-orange-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 flex items-center justify-center gap-2"
+              className="w-full py-4 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-base shadow-lg shadow-orange-500/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-orange-500/30 flex items-center justify-center gap-2"
             >
               <Music className="w-5 h-5" />
-              Konversi ke Audio
+              Konversi ke MP3
             </button>
           ) : (
-            /* Progress bar */
             <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl p-6">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-sm font-bold text-gray-700 dark:text-slate-200 flex items-center gap-2">
                   <RefreshCw className="w-4 h-4 text-orange-500 animate-spin" />
-                  Memproses audio…
+                  {progressLabel || 'Memproses…'}
                 </p>
                 <span className="text-sm font-bold text-orange-500">{progress}%</span>
               </div>
               <div className="w-full h-3 bg-gray-100 dark:bg-slate-800 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-orange-400 to-amber-400 rounded-full transition-all duration-500 shadow-sm"
+                  className="h-full bg-gradient-to-r from-orange-400 to-amber-400 rounded-full transition-all duration-300 shadow-sm"
                   style={{ width: `${progress}%` }}
                 />
               </div>
-              <p className="text-xs text-gray-400 dark:text-slate-500 mt-3">
-                {progress < 25
-                  ? 'Membaca file video…'
-                  : progress < 55
-                  ? 'Mendekode track audio…'
-                  : progress < 90
-                  ? 'Mengekspor ke format WAV…'
-                  : 'Hampir selesai…'}
-              </p>
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-2">{progressLabel}</p>
             </div>
           )}
         </div>
@@ -375,7 +366,6 @@ export default function Mp4ToMp3Tool({ onBack }) {
       {/* Result */}
       {status === 'done' && result && (
         <div className="space-y-5 mt-2">
-          {/* Success card */}
           <div className="p-6 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl shadow-sm">
             <div className="flex items-center gap-3 mb-5">
               <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500">
@@ -383,24 +373,19 @@ export default function Mp4ToMp3Tool({ onBack }) {
               </div>
               <div>
                 <p className="font-bold text-gray-900 dark:text-slate-100">Konversi berhasil!</p>
-                <p className="text-xs text-gray-400 dark:text-slate-500">Audio siap diunduh</p>
+                <p className="text-xs text-gray-400 dark:text-slate-500">File MP3 siap diunduh</p>
               </div>
             </div>
 
-            {/* Audio preview player */}
+            {/* Audio preview */}
             <div className="mb-5">
               <p className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">
                 Pratinjau Audio
               </p>
-              <audio
-                controls
-                src={result.url}
-                className="w-full rounded-xl"
-                style={{ accentColor: '#f97316' }}
-              />
+              <audio controls src={result.url} className="w-full rounded-xl" style={{ accentColor: '#f97316' }} />
             </div>
 
-            {/* Output file info */}
+            {/* Output info */}
             <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-slate-800/50 rounded-xl mb-5">
               <div className="p-2.5 rounded-xl bg-orange-50 dark:bg-orange-500/10 text-orange-500">
                 <Music className="w-5 h-5" />
@@ -415,12 +400,11 @@ export default function Mp4ToMp3Tool({ onBack }) {
                     {formatDuration(result.duration)}
                   </span>
                   <span>·</span>
-                  <span>WAV Lossless</span>
+                  <span>MP3 · {bitrate.label}</span>
                 </div>
               </div>
             </div>
 
-            {/* Download button */}
             <a
               href={result.url}
               download={result.name}
@@ -431,13 +415,12 @@ export default function Mp4ToMp3Tool({ onBack }) {
             </a>
           </div>
 
-          {/* Convert another */}
           <button
             onClick={reset}
             className="w-full py-3.5 rounded-2xl border-2 border-dashed border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:border-orange-300 dark:hover:border-orange-500/50 hover:text-orange-500 dark:hover:text-orange-400 font-semibold text-sm transition-all flex items-center justify-center gap-2"
           >
             <RefreshCw className="w-4 h-4" />
-            Konversi video lain
+            Konversi file lain
           </button>
         </div>
       )}
@@ -447,13 +430,10 @@ export default function Mp4ToMp3Tool({ onBack }) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8">
           {[
             { icon: <Shield className="w-5 h-5" />, title: 'Privasi Terjaga', desc: 'File tidak pernah diunggah ke server — semua diproses di browsermu.' },
-            { icon: <Zap className="w-5 h-5" />, title: 'Cepat & Ringan', desc: 'Menggunakan Web Audio API bawaan browser, tanpa plugin tambahan.' },
-            { icon: <Music className="w-5 h-5" />, title: 'Kualitas Tinggi', desc: 'Output WAV lossless — kualitas audio identik dengan sumber aslinya.' },
+            { icon: <Music className="w-5 h-5" />, title: 'MP3 Asli', desc: 'Output .mp3 sejati via lamejs encoder — bukan WAV yang diganti ekstensi.' },
+            { icon: <Zap className="w-5 h-5" />, title: 'Multi-Format', desc: 'Mendukung input video (MP4, MKV) dan audio (WAV, AAC, FLAC, OGG).' },
           ].map((f) => (
-            <div
-              key={f.title}
-              className="p-4 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl"
-            >
+            <div key={f.title} className="p-4 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl">
               <div className="text-orange-500 mb-2">{f.icon}</div>
               <p className="font-bold text-gray-800 dark:text-slate-100 text-sm mb-1">{f.title}</p>
               <p className="text-xs text-gray-500 dark:text-slate-400 leading-relaxed">{f.desc}</p>

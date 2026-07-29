@@ -13,6 +13,7 @@
     "@emailjs/browser": "^4.4.1",
     "@imgly/background-removal": "^1.7.0",
     "html-to-image": "^1.11.13",
+    "lamejs": "^1.2.1",
     "lucide-react": "^1.26.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
