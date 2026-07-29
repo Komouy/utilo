@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Search, Grid, QrCode, Flame, ChevronRight, ChevronDown, FileBox, Menu, X, 
   ImageIcon, Sparkles, Code2, Binary, Layers, LayoutGrid, KeyRound, Type, Link, AlignLeft,
-  Sun, Moon, Star, Command, CornerDownLeft
+  Sun, Moon, Star, Command, CornerDownLeft, Music
 } from 'lucide-react';
 import QRCodeGeneratorTool from './components/QRCodeGeneratorTool';
 import ImageConverterTool from './components/ImageConverterTool';
@@ -14,6 +14,7 @@ import WordCounterTool from './components/WordCounterTool';
 import UrlEncoderTool from './components/UrlEncoderTool';
 import LoremIpsumTool from './components/LoremIpsumTool';
 import RequestToolPage from './components/RequestToolPage';
+import Mp4ToMp3Tool from './components/Mp4ToMp3Tool';
 import alatinLogo from './assets/alatin.png';
 
 const ALL_TOOLS = [
@@ -93,6 +94,15 @@ const ALL_TOOLS = [
     desc: 'Encode and decode URLs and query strings instantly — 100% browser-based',
     icon: <Link className="w-7 h-7" />,
     category: 'Developer Tools',
+    badge: 'New',
+    badgeColor: 'green'
+  },
+  {
+    id: 'mp4-to-mp3',
+    title: 'MP4 to Audio Converter',
+    desc: 'Ekstrak audio dari video MP4, MOV, MKV langsung di browser — tanpa upload server',
+    icon: <Music className="w-7 h-7" />,
+    category: 'Media & Images',
     badge: 'New',
     badgeColor: 'green'
   }
@@ -842,6 +852,8 @@ export default function App() {
           <UrlEncoderTool onBack={() => setActiveTool(null)} />
         ) : activeTool === 'lorem-ipsum' ? (
           <LoremIpsumTool onBack={() => setActiveTool(null)} />
+        ) : activeTool === 'mp4-to-mp3' ? (
+          <Mp4ToMp3Tool onBack={() => setActiveTool(null)} />
         ) : (
           <>
             <Hero 
@@ -999,6 +1011,7 @@ function Footer({ onSelectTool, onRequestTool }) {
               <li><button onClick={() => onSelectTool('image-converter')} className="hover:text-orange-500 dark:hover:text-orange-400 transition-colors">Image Converter</button></li>
               <li><button onClick={() => onSelectTool('qr-code')} className="hover:text-orange-500 dark:hover:text-orange-400 transition-colors">QR Code Generator</button></li>
               <li><button onClick={() => onSelectTool('password-generator')} className="hover:text-orange-500 dark:hover:text-orange-400 transition-colors">Password Generator</button></li>
+              <li><button onClick={() => onSelectTool('mp4-to-mp3')} className="hover:text-orange-500 dark:hover:text-orange-400 transition-colors">MP4 to Audio Converter</button></li>
             </ul>
           </div>
 
